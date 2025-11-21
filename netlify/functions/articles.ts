@@ -157,14 +157,14 @@ export const handler: Handler = async (event) => {
           ${article.title},
           ${article.excerpt},
           ${article.content},
-          ${article.media ?? []},
+          ${JSON.stringify(article.media ?? [])},
           ${article.audioUrl ?? null},
           ${article.category},
           ${article.date},
           ${article.author},
           ${article.featured ?? false},
           ${article.readTime ?? 5},
-          ${article.sources ?? []},
+          ${JSON.stringify(article.sources ?? [])},
           ${article.views ?? 0}
         )
         ON CONFLICT (id) DO UPDATE SET
