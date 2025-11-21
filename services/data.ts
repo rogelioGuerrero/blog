@@ -222,7 +222,7 @@ export const normalizeArticle = (data: any): Article => {
     lowerAuthor.includes('bot') ||
     lowerAuthor.includes('newsgen')
   ) {
-    authorName = 'Redacción Lumina';
+    authorName = 'Redacción AGTI SA';
   }
 
   const rawMedia = Array.isArray(data.media) ? data.media : [];
