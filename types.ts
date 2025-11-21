@@ -28,6 +28,7 @@ export interface AppSettings {
     footerDescription: string;
     footerLinks: FooterLink[];
     logoUrl?: string;
+    homeLayout?: 'hero_masonry' | 'hero_grid' | 'hero_list';
 }
 
 export type ViewState = 'HOME' | 'ARTICLE' | 'ADMIN' | 'ARCHIVE';

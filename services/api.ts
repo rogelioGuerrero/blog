@@ -145,6 +145,7 @@ export async function getSettingsFromApi(): Promise<AppSettings> {
       ...raw,
       footerLinks: Array.isArray(raw.footerLinks) ? raw.footerLinks : [],
       logoUrl: raw.logoUrl || DEFAULT_APP_SETTINGS.logoUrl,
+      homeLayout: raw.homeLayout || DEFAULT_APP_SETTINGS.homeLayout || 'hero_masonry',
     };
     settingsCache = merged;
     return merged;
@@ -171,6 +172,7 @@ export async function saveSettingsToApi(settings: AppSettings): Promise<AppSetti
     ...raw,
     footerLinks: Array.isArray(raw.footerLinks) ? raw.footerLinks : [],
     logoUrl: raw.logoUrl || DEFAULT_APP_SETTINGS.logoUrl,
+    homeLayout: raw.homeLayout || DEFAULT_APP_SETTINGS.homeLayout || 'hero_masonry',
   };
 
   settingsCache = merged;

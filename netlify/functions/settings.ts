@@ -17,6 +17,7 @@ interface SettingsRow {
   footer_description: string;
   footer_links: any | null;
   logo_url: string | null;
+  home_layout: string | null;
 }
 
 const corsHeaders = {
@@ -32,7 +33,21 @@ const mapRowToSettings = (row: SettingsRow) => ({
   footerDescription: row.footer_description,
   footerLinks: Array.isArray(row.footer_links) ? row.footer_links : [],
   logoUrl: row.logo_url ?? undefined,
+  homeLayout: (row.home_layout as any) || 'hero_masonry',
 });
+
+let didTryMigrate = false;
+
+async function ensureSettingsSchema() {
+  if (didTryMigrate || !sql) return;
+  didTryMigrate = true;
+  try {
+    // Añadir columna home_layout si no existe
+    await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS home_layout text DEFAULT 'hero_masonry'`;
+  } catch (e) {
+    console.warn('Could not ensure home_layout column on app_settings', e);
+  }
+}
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -53,9 +68,11 @@ export const handler: Handler = async (event) => {
 
   const { httpMethod, body } = event;
 
+  await ensureSettingsSchema();
+
   try {
     if (httpMethod === 'GET') {
-      const rows = await sql`SELECT id, site_name, nav_categories, contact_email, footer_description, footer_links, logo_url FROM app_settings WHERE id = 'default' LIMIT 1`;
+      const rows = await sql`SELECT id, site_name, nav_categories, contact_email, footer_description, footer_links, logo_url, home_layout FROM app_settings WHERE id = 'default' LIMIT 1`;
       const typed = rows as unknown as SettingsRow[];
 
       if (!typed.length) {
@@ -100,6 +117,9 @@ export const handler: Handler = async (event) => {
 
       const navCategories = Array.isArray(payload.navCategories) ? payload.navCategories : [];
       const footerLinks = Array.isArray(payload.footerLinks) ? payload.footerLinks : [];
+      const homeLayout = typeof payload.homeLayout === 'string' && ['hero_masonry','hero_grid','hero_list'].includes(payload.homeLayout)
+        ? payload.homeLayout
+        : 'hero_masonry';
 
       const rows = await sql`INSERT INTO app_settings (
           id,
@@ -108,7 +128,8 @@ export const handler: Handler = async (event) => {
           contact_email,
           footer_description,
           footer_links,
-          logo_url
+          logo_url,
+          home_layout
         ) VALUES (
           'default',
           ${payload.siteName},
@@ -116,7 +137,8 @@ export const handler: Handler = async (event) => {
           ${payload.contactEmail},
           ${payload.footerDescription},
           ${footerLinks},
-          ${payload.logoUrl ?? null}
+          ${payload.logoUrl ?? null},
+          ${homeLayout}
         )
         ON CONFLICT (id) DO UPDATE SET
           site_name = EXCLUDED.site_name,
@@ -125,8 +147,9 @@ export const handler: Handler = async (event) => {
           footer_description = EXCLUDED.footer_description,
           footer_links = EXCLUDED.footer_links,
           logo_url = EXCLUDED.logo_url,
+          home_layout = EXCLUDED.home_layout,
           updated_at = now()
-        RETURNING id, site_name, nav_categories, contact_email, footer_description, footer_links, logo_url`;
+        RETURNING id, site_name, nav_categories, contact_email, footer_description, footer_links, logo_url, home_layout`;
 
       const typed = rows as unknown as SettingsRow[];
       const settings = mapRowToSettings(typed[0]);

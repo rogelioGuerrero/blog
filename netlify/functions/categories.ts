@@ -17,6 +17,7 @@ interface SettingsRow {
   footer_description: string;
   footer_links: any | null;
   logo_url: string | null;
+  home_layout: string | null;
 }
 
 const corsHeaders = {
@@ -32,6 +33,7 @@ const mapRowToSettings = (row: SettingsRow) => ({
   footerDescription: row.footer_description,
   footerLinks: Array.isArray(row.footer_links) ? row.footer_links : [],
   logoUrl: row.logo_url ?? undefined,
+  homeLayout: (row.home_layout as any) || 'hero_masonry',
 });
 
 export const handler: Handler = async (event) => {

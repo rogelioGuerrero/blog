@@ -140,7 +140,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     contactEmail: "info@agtisa.com",
     footerDescription: "We bridge the gap between complex information and actionable knowledge. Our mission is to curate, analyze, and present the stories that shape our future.",
     footerLinks: [],
-    logoUrl: DEFAULT_LOGO_URL
+    logoUrl: DEFAULT_LOGO_URL,
+    homeLayout: 'hero_masonry'
 };
 
 const STORAGE_KEY_ARTICLES = 'lumina_articles_v2'; // Increment version to force refresh if needed
@@ -174,7 +175,8 @@ const loadSettings = (): AppSettings => {
                 ...DEFAULT_SETTINGS, 
                 ...parsed, 
                 footerLinks: parsed.footerLinks || [],
-                logoUrl: parsed.logoUrl || DEFAULT_SETTINGS.logoUrl
+                logoUrl: parsed.logoUrl || DEFAULT_SETTINGS.logoUrl,
+                homeLayout: parsed.homeLayout || DEFAULT_SETTINGS.homeLayout
             };
         }
     } catch (e) {
