@@ -1,8 +1,7 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe } from 'lucide-react';
-import { normalizeArticle, saveArticle, getSettings, saveSettings, AppSettings, getArticles, deleteArticle } from '../services/data';
+import { normalizeArticle, getSettings, AppSettings, getArticles } from '../services/data';
+import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi } from '../services/api';
 import { searchMedia } from '../services/pexels';
 
 interface Props {
@@ -16,6 +15,7 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
   
   // -- Config State (Loaded first to populate dropdowns) --
   const [settings, setSettings] = useState<AppSettings>(getSettings());
+
   const [newCategory, setNewCategory] = useState('');
   const [newLinkLabel, setNewLinkLabel] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -32,6 +32,34 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Load latest settings and articles from API on mount (fallback a la capa local si falla)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [remoteSettings, remoteArticles] = await Promise.all([
+          getSettingsFromApi(),
+          getArticlesFromApi(),
+        ]);
+
+        if (cancelled) return;
+
+        setSettings(remoteSettings);
+        setArticleList(remoteArticles);
+        if (remoteSettings.navCategories.length > 0) {
+          setSelectedCategory(remoteSettings.navCategories[0]);
+        }
+      } catch (e) {
+        console.error('Failed to load admin data from API, using local storage / defaults instead', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Helper to try and auto-match category from JSON
   const tryAutoSelectCategory = (jsonString: string) => {
@@ -134,10 +162,11 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
       article.media = enhancedMedia as any;
 
       try {
-        saveArticle(article);
-        setArticleList(getArticles()); // Refresh list
+        const saved = await saveArticleToApi(article);
+        const updatedList = await getArticlesFromApi();
+        setArticleList(updatedList);
         setStatus({ type: 'success', message: 'Article Published Successfully!' });
-        
+
         setTimeout(() => {
           onClose();
         }, 1500);
@@ -219,9 +248,10 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
       }
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
       try {
-        saveSettings(settings);
+        const saved = await saveSettingsToApi(settings);
+        setSettings(saved);
         setStatus({ type: 'success', message: 'Configuration Saved!' });
         setTimeout(() => setStatus(null), 2000);
       } catch (e: any) {
@@ -230,12 +260,12 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
   };
 
   // --- MANAGE HANDLERS ---
-  const handleDeleteArticle = (id: string) => {
+  const handleDeleteArticle = async (id: string) => {
       if (window.confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
           try {
-              deleteArticle(id);
+              await deleteArticleFromApi(id);
               // Force a fresh read from the source of truth to ensure UI sync
-              const updatedList = getArticles();
+              const updatedList = await getArticlesFromApi();
               setArticleList([...updatedList]); 
               setStatus({ type: 'success', message: 'Article deleted.' });
               setTimeout(() => setStatus(null), 2000);

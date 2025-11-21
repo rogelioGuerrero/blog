@@ -1,10 +1,14 @@
-
 import React from 'react';
-import { getSettings } from '../services/data';
+import { AppSettings } from '../types';
+
 import { Mail, Globe, Shield, FileText, ExternalLink } from 'lucide-react';
 
-const Footer: React.FC = () => {
-  const settings = getSettings();
+interface Props {
+  settings: AppSettings;
+}
+
+const Footer: React.FC<Props> = ({ settings }) => {
+
   const year = new Date().getFullYear();
   
   const hasCustomLinks = settings.footerLinks && settings.footerLinks.length > 0;

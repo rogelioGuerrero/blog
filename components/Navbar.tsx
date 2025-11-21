@@ -1,8 +1,6 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Menu, Sun, Moon, X } from 'lucide-react';
-import { getSettings } from '../services/data';
+import { AppSettings } from '../types';
 
 interface Props {
     onHome: () => void;
@@ -11,10 +9,10 @@ interface Props {
     searchTerm: string;
     onCategorySelect: (category: string) => void;
     activeCategory: string;
+    settings: AppSettings;
 }
 
-const Navbar: React.FC<Props> = ({ onHome, onSecret, onSearch, searchTerm, onCategorySelect, activeCategory }) => {
-  const settings = getSettings();
+const Navbar: React.FC<Props> = ({ onHome, onSecret, onSearch, searchTerm, onCategorySelect, activeCategory, settings }) => {
   
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {

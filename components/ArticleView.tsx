@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Article } from '../types';
+import { Article, AppSettings } from '../types';
 import MediaCarousel from './MediaCarousel';
-import { getArticles, getSettings } from '../services/data';
+
 import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check } from 'lucide-react';
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   onNavigate: (id: string) => void;
   onPlayAudio: (article: Article) => void;
   isPlayingCurrent: boolean;
+  relatedArticles: Article[];
+  settings: AppSettings;
 }
 
 // Small helper component for images with loading skeleton
@@ -58,24 +60,20 @@ const getDomainFromUrl = (url: string): string => {
   }
 };
 
-const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio, isPlayingCurrent }) => {
+const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio, isPlayingCurrent, relatedArticles, settings }) => {
   
   // Logic to find related articles
-  const relatedArticles = getArticles()
-    .filter(a => a.category === article.category && a.id !== article.id)
-    .slice(0, 3);
-    
   const [isCopied, setIsCopied] = useState(false);
 
   // Update document title for better sharing context (Browser Tab / History)
   useEffect(() => {
-    const siteName = getSettings().siteName;
+    const siteName = settings.siteName;
     document.title = `${article.title} | ${siteName}`;
     
     return () => {
         document.title = siteName;
     };
-  }, [article]);
+  }, [article, settings.siteName]);
 
   const handleShare = async () => {
       // Use current href to ensure we share exactly what is in the address bar (with Deep Link ID)

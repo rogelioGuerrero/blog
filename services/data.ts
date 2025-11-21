@@ -246,6 +246,9 @@ export const normalizeArticle = (data: any): Article => {
   };
 };
 
+export const SEED_ARTICLES: Article[] = SEED_DATA.map(normalizeArticle);
+export const DEFAULT_APP_SETTINGS: AppSettings = DEFAULT_SETTINGS;
+
 // Mutable in-memory stores
 let currentArticles = loadArticles();
 let currentSettings = loadSettings();

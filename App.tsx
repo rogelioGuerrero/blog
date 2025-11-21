@@ -5,8 +5,9 @@ import AudioPlayer from './components/AudioPlayer';
 import AdminEditor from './components/AdminEditor';
 import Footer from './components/Footer';
 import { GridSkeleton, ArticleSkeleton } from './components/Skeletons';
-import { getArticles, getFeaturedArticle, getRecentArticles, incrementArticleView } from './services/data';
-import { Article, ViewState } from './types';
+import { getArticlesFromApi, getSettingsFromApi, incrementArticleViewApi } from './services/api';
+import { DEFAULT_APP_SETTINGS } from './services/data';
+import { Article, AppSettings, ViewState } from './types';
 import { ArrowRight, Play, SearchX } from 'lucide-react';
 
 function App() {
@@ -29,9 +30,13 @@ function App() {
 
   // Force re-render when data changes
   const [dataVersion, setDataVersion] = useState(0);
-  
-  const allArticles = getArticles();
-  const featuredArticle = getFeaturedArticle();
+
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  const allArticles = articles;
+  const featuredArticle = allArticles.find(a => a.featured) || allArticles[0];
   
   // Filter Logic
   const filteredArticles = allArticles.filter(article => {
@@ -46,30 +51,66 @@ function App() {
   });
 
   // Exclude featured article from grid ONLY if we are in default view (No search, All categories)
-  const displayArticles = (searchQuery || activeCategory !== 'All') 
+  const displayArticles = (searchQuery || activeCategory !== 'All' || !featuredArticle) 
       ? filteredArticles 
       : filteredArticles.filter(a => a.id !== featuredArticle.id);
 
   // --- DEEP LINKING & HISTORY LOGIC ---
   
-  // 1. Check URL on load
+  // 1. Bootstrap data (settings + articles) and handle deep-linking
   useEffect(() => {
-    // Safe check for URL params
-    try {
-        const params = new URLSearchParams(window.location.search);
-        const sharedArticleId = params.get('articleId');
-        
-        if (sharedArticleId) {
-            const exists = allArticles.find(a => a.id === sharedArticleId);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [remoteSettings, remoteArticles] = await Promise.all([
+          getSettingsFromApi(),
+          getArticlesFromApi(),
+        ]);
+
+        if (cancelled) return;
+
+        setSettings(remoteSettings);
+        setArticles(remoteArticles);
+
+        // Deep link handling after data is loaded
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const sharedArticleId = params.get('articleId');
+
+          if (sharedArticleId) {
+            const exists = remoteArticles.find(a => a.id === sharedArticleId);
             if (exists) {
-                incrementArticleView(sharedArticleId);
-                setSelectedArticleId(sharedArticleId);
-                setView('ARTICLE');
+              try {
+                const updated = await incrementArticleViewApi(sharedArticleId);
+                setArticles(prev => {
+                  const index = prev.findIndex(a => a.id === updated.id);
+                  if (index === -1) return prev;
+                  const copy = [...prev];
+                  copy[index] = updated;
+                  return copy;
+                });
+              } catch (e) {
+                console.error('Failed to increment view for shared article', e);
+              }
+
+              setSelectedArticleId(sharedArticleId);
+              setView('ARTICLE');
             }
+          }
+        } catch (e) {
+          console.log("URL parsing unavailable in this environment");
         }
-    } catch (e) {
-        console.log("URL parsing unavailable in this environment");
-    }
+      } catch (e) {
+        console.error('Failed to bootstrap data from API', e);
+      } finally {
+        if (!cancelled) setIsBootstrapping(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 2. Handle Browser Back/Forward Buttons
@@ -124,8 +165,20 @@ function App() {
         console.warn("Deep linking disabled: History API unavailable in this environment.");
     }
 
-    transitionTimeoutRef.current = window.setTimeout(() => {
-        incrementArticleView(id);
+    transitionTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          const updated = await incrementArticleViewApi(id);
+          setArticles(prev => {
+            const index = prev.findIndex(a => a.id === updated.id);
+            if (index === -1) return prev;
+            const copy = [...prev];
+            copy[index] = updated;
+            return copy;
+          });
+        } catch (e) {
+          console.error('Failed to increment article view', e);
+        }
+
         setSelectedArticleId(id);
         setView('ARTICLE');
         setIsLoading(false);
@@ -189,6 +242,7 @@ function App() {
         searchTerm={searchQuery}
         onCategorySelect={setActiveCategory}
         activeCategory={activeCategory}
+        settings={settings}
       />
 
       <main className="flex-grow pt-24 pb-20 px-4 sm:px-6 lg:px-8">
@@ -203,11 +257,11 @@ function App() {
              )
         ) : (
             <>
-                {view === 'HOME' && (
+                {view === 'HOME' && !isBootstrapping && (
                 <div className="max-w-7xl mx-auto animate-fade-in">
                     
                     {/* Hero Section */}
-                    {!searchQuery && activeCategory === 'All' && (
+                    {!searchQuery && activeCategory === 'All' && featuredArticle && (
                         <section className="mb-12 md:mb-20 group cursor-pointer relative rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl shadow-slate-200/50 dark:shadow-black/5 border border-slate-200 dark:border-white/10 bg-slate-900" onClick={() => handleArticleClick(featuredArticle.id)}>
                             <div className="absolute inset-0">
                                 {featuredArticle.media.find(m => m.type === 'video') ? (
@@ -340,13 +394,25 @@ function App() {
                 )}
 
                 {view === 'ARTICLE' && selectedArticleId && (
-                <ArticleView 
-                    article={allArticles.find(a => a.id === selectedArticleId)!} 
-                    onBack={handleHomeClick}
-                    onNavigate={handleArticleClick}
-                    onPlayAudio={handlePlayAudio}
-                    isPlayingCurrent={audioState.articleId === selectedArticleId}
-                />
+                  (() => {
+                    const current = allArticles.find(a => a.id === selectedArticleId);
+                    if (!current) return null;
+                    const related = allArticles
+                      .filter(a => a.category === current.category && a.id !== current.id)
+                      .slice(0, 3);
+
+                    return (
+                      <ArticleView 
+                        article={current} 
+                        onBack={handleHomeClick}
+                        onNavigate={handleArticleClick}
+                        onPlayAudio={handlePlayAudio}
+                        isPlayingCurrent={audioState.articleId === selectedArticleId}
+                        relatedArticles={related}
+                        settings={settings}
+                      />
+                    );
+                  })()
                 )}
 
                 {view === 'ADMIN' && (
@@ -356,7 +422,7 @@ function App() {
         )}
       </main>
       
-      {!isLoading && <Footer />}
+      {!isLoading && <Footer settings={settings} />}
 
       <AudioPlayer 
         src={audioState.src} 

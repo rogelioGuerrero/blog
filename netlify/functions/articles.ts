@@ -56,14 +56,6 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
   if (!sql) {
     return {
       statusCode: 500,
@@ -72,20 +64,145 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  const { httpMethod, queryStringParameters, body } = event;
+
   try {
-    const rows = await sql`SELECT id, title, excerpt, content, media, audio_url, category, date, author, featured, read_time, sources, views FROM articles ORDER BY created_at DESC`;
-    const articles = (rows as unknown as ArticleRow[]).map(mapRowToArticle);
+    // GET /articles or /articles?id=...
+    if (httpMethod === 'GET') {
+      const id = queryStringParameters?.id;
+
+      if (id) {
+        const rows = await sql`SELECT id, title, excerpt, content, media, audio_url, category, date, author, featured, read_time, sources, views FROM articles WHERE id = ${id} LIMIT 1`;
+        const typed = rows as unknown as ArticleRow[];
+
+        if (!typed.length) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ error: 'Article not found' }),
+          };
+        }
+
+        const article = mapRowToArticle(typed[0]);
+        return {
+          statusCode: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ article }),
+        };
+      }
+
+      const rows = await sql`SELECT id, title, excerpt, content, media, audio_url, category, date, author, featured, read_time, sources, views FROM articles ORDER BY created_at DESC`;
+      const articles = (rows as unknown as ArticleRow[]).map(mapRowToArticle);
+
+      return {
+        statusCode: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ articles }),
+      };
+    }
+
+    // POST /articles  (upsert)
+    if (httpMethod === 'POST') {
+      if (!body) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Missing request body' }),
+        };
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Invalid JSON body' }),
+        };
+      }
+
+      const article = payload;
+
+      if (!article || !article.id || !article.title || !article.excerpt || !article.content) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Missing required article fields' }),
+        };
+      }
+
+      const rows = await sql`INSERT INTO articles (
+          id,
+          title,
+          excerpt,
+          content,
+          media,
+          audio_url,
+          category,
+          date,
+          author,
+          featured,
+          read_time,
+          sources,
+          views
+        ) VALUES (
+          ${article.id},
+          ${article.title},
+          ${article.excerpt},
+          ${article.content},
+          ${article.media ?? []},
+          ${article.audioUrl ?? null},
+          ${article.category},
+          ${article.date},
+          ${article.author},
+          ${article.featured ?? false},
+          ${article.readTime ?? 5},
+          ${article.sources ?? []},
+          ${article.views ?? 0}
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          title = EXCLUDED.title,
+          excerpt = EXCLUDED.excerpt,
+          content = EXCLUDED.content,
+          media = EXCLUDED.media,
+          audio_url = EXCLUDED.audio_url,
+          category = EXCLUDED.category,
+          date = EXCLUDED.date,
+          author = EXCLUDED.author,
+          featured = EXCLUDED.featured,
+          read_time = EXCLUDED.read_time,
+          sources = EXCLUDED.sources,
+          views = EXCLUDED.views,
+          updated_at = now()
+        RETURNING id, title, excerpt, content, media, audio_url, category, date, author, featured, read_time, sources, views`;
+
+      const typed = rows as unknown as ArticleRow[];
+      const saved = mapRowToArticle(typed[0]);
+
+      return {
+        statusCode: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ article: saved }),
+      };
+    }
 
     return {
-      statusCode: 200,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ articles }),
+      statusCode: 405,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Method not allowed' }),
     };
   } catch (error) {
-    console.error('Error fetching articles from Neon', error);
+    console.error('Error handling articles request', error);
     return {
       statusCode: 500,
       headers: corsHeaders,
