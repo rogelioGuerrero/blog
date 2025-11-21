@@ -27,10 +27,10 @@ const corsHeaders = {
 
 const mapRowToSettings = (row: SettingsRow) => ({
   siteName: row.site_name,
-  navCategories: row.nav_categories,
+  navCategories: Array.isArray(row.nav_categories) ? row.nav_categories : [],
   contactEmail: row.contact_email,
   footerDescription: row.footer_description,
-  footerLinks: row.footer_links ?? [],
+  footerLinks: Array.isArray(row.footer_links) ? row.footer_links : [],
   logoUrl: row.logo_url ?? undefined,
 });
 

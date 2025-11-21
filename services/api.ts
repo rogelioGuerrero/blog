@@ -143,7 +143,7 @@ export async function getSettingsFromApi(): Promise<AppSettings> {
     const merged: AppSettings = {
       ...DEFAULT_APP_SETTINGS,
       ...raw,
-      footerLinks: raw.footerLinks || [],
+      footerLinks: Array.isArray(raw.footerLinks) ? raw.footerLinks : [],
       logoUrl: raw.logoUrl || DEFAULT_APP_SETTINGS.logoUrl,
     };
     settingsCache = merged;
@@ -169,7 +169,7 @@ export async function saveSettingsToApi(settings: AppSettings): Promise<AppSetti
   const merged: AppSettings = {
     ...DEFAULT_APP_SETTINGS,
     ...raw,
-    footerLinks: raw.footerLinks || [],
+    footerLinks: Array.isArray(raw.footerLinks) ? raw.footerLinks : [],
     logoUrl: raw.logoUrl || DEFAULT_APP_SETTINGS.logoUrl,
   };
 
