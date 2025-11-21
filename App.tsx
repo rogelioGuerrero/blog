@@ -27,6 +27,8 @@ function App() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [archiveDateFilter, setArchiveDateFilter] = useState<'all' | 'last30' | 'last365'>('all');
+  const [archivePage, setArchivePage] = useState(1);
 
   // Force re-render when data changes
   const [dataVersion, setDataVersion] = useState(0);
@@ -54,6 +56,33 @@ function App() {
   const displayArticles = (searchQuery || activeCategory !== 'All' || !featuredArticle) 
       ? filteredArticles 
       : filteredArticles.filter(a => a.id !== featuredArticle.id);
+
+  // Archive-specific filtering (date) and pagination
+  const now = Date.now();
+  const MS_30_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const MS_365_DAYS = 365 * 24 * 60 * 60 * 1000;
+
+  const archiveFilteredByDate = filteredArticles.filter(article => {
+    if (archiveDateFilter === 'all') return true;
+    const t = new Date(article.date).getTime();
+    if (isNaN(t)) return true;
+    const delta = now - t;
+    if (archiveDateFilter === 'last30') return delta <= MS_30_DAYS;
+    if (archiveDateFilter === 'last365') return delta <= MS_365_DAYS;
+    return true;
+  });
+
+  const ARCHIVE_PAGE_SIZE = 9;
+  const archiveSorted = [...archiveFilteredByDate].sort((a, b) => {
+    const da = new Date(a.date).getTime();
+    const db = new Date(b.date).getTime();
+    return (isNaN(db) ? 0 : db) - (isNaN(da) ? 0 : da);
+  });
+
+  const archiveTotalPages = Math.max(1, Math.ceil(archiveSorted.length / ARCHIVE_PAGE_SIZE));
+  const safeArchivePage = Math.min(archivePage, archiveTotalPages);
+  const archivePageStart = (safeArchivePage - 1) * ARCHIVE_PAGE_SIZE;
+  const archivePageItems = archiveSorted.slice(archivePageStart, archivePageStart + ARCHIVE_PAGE_SIZE);
 
   // --- DEEP LINKING & HISTORY LOGIC ---
   
@@ -144,6 +173,11 @@ function App() {
       return () => window.removeEventListener('popstate', handlePopState);
   }, [view, selectedArticleId, allArticles]);
 
+  // Reset archive pagination when filters change
+  useEffect(() => {
+    setArchivePage(1);
+  }, [searchQuery, activeCategory, archiveDateFilter]);
+
   // Scroll to top on view change
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -216,6 +250,13 @@ function App() {
       setView('ADMIN');
   };
 
+  const handleArchiveClick = () => {
+      if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
+      setIsLoading(false);
+      setView('ARCHIVE');
+      window.scrollTo(0, 0);
+  };
+
   const handlePlayAudio = (article: Article) => {
     if (!article.audioUrl) return;
     if (audioState.articleId === article.id) {
@@ -243,6 +284,8 @@ function App() {
         onCategorySelect={setActiveCategory}
         activeCategory={activeCategory}
         settings={settings}
+        onArchive={handleArchiveClick}
+        isArchiveActive={view === 'ARCHIVE'}
       />
 
       <main className="flex-grow pt-24 pb-20 px-4 sm:px-6 lg:px-8">
@@ -313,7 +356,6 @@ function App() {
                         {!searchQuery && activeCategory === 'All' && (
                             <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white font-serif">Latest Stories</h3>
-                                <button className="text-indigo-600 dark:text-indigo-400 text-sm font-medium hover:text-indigo-800 dark:hover:text-indigo-300">View Archive</button>
                             </div>
                         )}
 
@@ -393,6 +435,164 @@ function App() {
                 </div>
                 )}
 
+                {view === 'ARCHIVE' && !isBootstrapping && (
+                  <div className="max-w-7xl mx-auto animate-fade-in">
+                    <header className="mb-8 pb-4 border-b border-slate-200 dark:border-white/10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                      <div>
+                        <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-1">Archive</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Browse all published stories. Use the top navigation and search to filter by category and keywords.
+                        </p>
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest font-semibold">
+                        {archiveFilteredByDate.length} articles
+                      </div>
+                    </header>
+
+                    {archiveFilteredByDate.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 opacity-70">
+                        <SearchX size={48} className="text-slate-400 mb-4" />
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No stories in archive</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-center max-w-md">
+                          Try changing the category or clearing the search box to see more results.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-slate-400">
+                            <span className="font-semibold uppercase tracking-widest">Date range:</span>
+                            <button
+                              onClick={() => setArchiveDateFilter('all')}
+                              className={`px-3 py-1 rounded-full border transition-colors ${
+                                archiveDateFilter === 'all'
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              All time
+                            </button>
+                            <button
+                              onClick={() => setArchiveDateFilter('last30')}
+                              className={`px-3 py-1 rounded-full border transition-colors ${
+                                archiveDateFilter === 'last30'
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Last 30 days
+                            </button>
+                            <button
+                              onClick={() => setArchiveDateFilter('last365')}
+                              className={`px-3 py-1 rounded-full border transition-colors ${
+                                archiveDateFilter === 'last365'
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Last year
+                            </button>
+                          </div>
+
+                          {archiveTotalPages > 1 && (
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                              <button
+                                onClick={() => setArchivePage(p => Math.max(1, p - 1))}
+                                disabled={safeArchivePage === 1}
+                                className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-900"
+                              >
+                                Previous
+                              </button>
+                              <span>
+                                Page {safeArchivePage} of {archiveTotalPages}
+                              </span>
+                              <button
+                                onClick={() => setArchivePage(p => Math.min(archiveTotalPages, p + 1))}
+                                disabled={safeArchivePage === archiveTotalPages}
+                                className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-900"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {archivePageItems.map(article => {
+                            const cover = article.media[0];
+                            const isVideo = cover?.type === 'video';
+                            return (
+                              <article
+                                key={article.id}
+                                onClick={() => handleArticleClick(article.id)}
+                                className="group cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/40 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-black/40 transition-all flex flex-col"
+                              >
+                                <div className="relative h-40 bg-slate-900">
+                                  {isVideo ? (
+                                    <video
+                                      src={cover.src}
+                                      className="w-full h-full object-cover opacity-70 group-hover:opacity-60 group-hover:scale-105 transition-all duration-500"
+                                      autoPlay
+                                      loop
+                                      muted
+                                      playsInline
+                                    />
+                                  ) : (
+                                    <img
+                                      src={cover?.src}
+                                      alt={article.title}
+                                      className="w-full h-full object-cover opacity-80 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500"
+                                    />
+                                  )}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" />
+                                  <span className="absolute left-4 bottom-3 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/15 text-white border border-white/20">
+                                    {article.category}
+                                  </span>
+                                </div>
+                                <div className="flex-1 flex flex-col p-4 gap-2">
+                                  <h3 className="font-serif font-semibold text-slate-900 dark:text-white text-base line-clamp-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                    {article.title}
+                                  </h3>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                                    {article.excerpt}
+                                  </p>
+                                  <div className="mt-auto flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                                    <span>{article.date}</span>
+                                    <span className="flex items-center gap-1">
+                                      {article.views ?? 0} views
+                                    </span>
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+
+                        {archiveTotalPages > 1 && (
+                          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                            <button
+                              onClick={() => setArchivePage(p => Math.max(1, p - 1))}
+                              disabled={safeArchivePage === 1}
+                              className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-900"
+                            >
+                              Previous
+                            </button>
+                            <span>
+                              Page {safeArchivePage} of {archiveTotalPages}
+                            </span>
+                            <button
+                              onClick={() => setArchivePage(p => Math.min(archiveTotalPages, p + 1))}
+                              disabled={safeArchivePage === archiveTotalPages}
+                              className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-900"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 {view === 'ARTICLE' && selectedArticleId && (
                   (() => {
                     const current = allArticles.find(a => a.id === selectedArticleId);

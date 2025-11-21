@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Menu, Sun, Moon, X } from 'lucide-react';
+import { Search, Bell, Menu, Sun, Moon, X, Archive } from 'lucide-react';
+
 import { AppSettings } from '../types';
 
 interface Props {
@@ -10,9 +11,11 @@ interface Props {
     onCategorySelect: (category: string) => void;
     activeCategory: string;
     settings: AppSettings;
+    onArchive: () => void;
+    isArchiveActive: boolean;
 }
 
-const Navbar: React.FC<Props> = ({ onHome, onSecret, onSearch, searchTerm, onCategorySelect, activeCategory, settings }) => {
+const Navbar: React.FC<Props> = ({ onHome, onSecret, onSearch, searchTerm, onCategorySelect, activeCategory, settings, onArchive, isArchiveActive }) => {
   
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -103,6 +106,17 @@ const Navbar: React.FC<Props> = ({ onHome, onSecret, onSearch, searchTerm, onCat
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
+            <button 
+                onClick={onArchive}
+                className={`p-2 rounded-full transition-colors ${
+                  isArchiveActive 
+                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
+                }`}
+                aria-label="Open archive"
+            >
+                <Archive size={18} />
+            </button>
             <button 
                 onClick={toggleTheme}
                 className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"

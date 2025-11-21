@@ -30,4 +30,4 @@ export interface AppSettings {
     logoUrl?: string;
 }
 
-export type ViewState = 'HOME' | 'ARTICLE' | 'ADMIN';
+export type ViewState = 'HOME' | 'ARTICLE' | 'ADMIN' | 'ARCHIVE';
