@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe } from 'lucide-react';
+
+import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe, GripVertical } from 'lucide-react';
+
 import { normalizeArticle, getSettings, AppSettings, getArticles } from '../services/data';
 import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi, renameCategoryInApi } from '../services/api';
 
@@ -33,6 +35,13 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   const [selectedCategory, setSelectedCategory] = useState<string>(settings.navCategories[0] || 'General');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  
+  const [isFooterLinksOpen, setIsFooterLinksOpen] = useState(false);
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
+  const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
+  const [draggedFooterLinkIndex, setDraggedFooterLinkIndex] = useState<number | null>(null);
+  const [dragOverFooterLinkIndex, setDragOverFooterLinkIndex] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -118,72 +127,68 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
 
   const handleProcessAndPublish = async () => {
     if (!jsonInput.trim()) return;
-    
+
     setIsProcessing(true);
     setStatus({ type: 'info', message: 'Parsing JSON...' });
-    
+
     try {
-      let rawData;
-      try {
-        rawData = JSON.parse(jsonInput);
-      } catch (e) {
-        setStatus({ type: 'error', message: 'Invalid JSON syntax' });
-        setIsProcessing(false);
-        return;
-      }
+      let rawData: any;
+      rawData = JSON.parse(jsonInput);
 
       const articleData = rawData.article ? rawData.article : rawData;
-      
+
       // OVERRIDE CATEGORY with the one selected in UI
       articleData.category = selectedCategory;
 
       const article = normalizeArticle(articleData);
-      
+
       setStatus({ type: 'info', message: 'Connecting to Pexels API...' });
-      
-      const enhancedMedia = [];
+
+      const enhancedMedia: any[] = [];
       const existingMedia = article.media.length > 0 ? article.media : [{ type: 'image', src: '' }];
 
       for (const item of existingMedia) {
         if (!item.src || item.src.length < 5) {
-           setStatus({ type: 'info', message: `Fetching ${item.type} for "${article.title}"...` });
-           const mediaResult = await searchMedia(`${article.title} ${article.category}`, item.type as 'image' | 'video');
-           
-           if (mediaResult) {
-             enhancedMedia.push({
-               type: item.type,
-               src: mediaResult.src,
-               caption: mediaResult.caption
-             });
-           } else {
-             enhancedMedia.push(item);
-           }
+          setStatus({ type: 'info', message: `Fetching ${item.type} for "${article.title}"...` });
+          const mediaResult = await searchMedia(
+            `${article.title} ${article.category}`,
+            item.type as 'image' | 'video'
+          );
+
+          if (mediaResult) {
+            enhancedMedia.push({
+              type: item.type,
+              src: mediaResult.src,
+              caption: mediaResult.caption,
+            });
+          } else {
+            enhancedMedia.push(item);
+          }
         } else {
-           enhancedMedia.push(item);
+          enhancedMedia.push(item);
         }
       }
-      
+
       article.media = enhancedMedia as any;
 
-      try {
-        const saved = await saveArticleToApi(article);
-        const updatedList = await getArticlesFromApi();
-        setArticleList(updatedList);
-        if (onArticlesUpdated) {
-          onArticlesUpdated(updatedList);
-        }
-        setStatus({ type: 'success', message: 'Article Published Successfully!' });
-
-        setTimeout(() => {
-          onClose();
-        }, 1500);
-      } catch (saveError: any) {
-        setStatus({ type: 'error', message: saveError.message || 'Failed to save article.' });
+      const saved = await saveArticleToApi(article);
+      const updatedList = await getArticlesFromApi();
+      setArticleList(updatedList);
+      if (onArticlesUpdated) {
+        onArticlesUpdated(updatedList);
       }
+      setStatus({ type: 'success', message: 'Article Published Successfully!' });
 
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err) {
-      console.error(err);
-      setStatus({ type: 'error', message: 'An unexpected error occurred.' });
+      if (err instanceof SyntaxError) {
+        setStatus({ type: 'error', message: 'Invalid JSON syntax' });
+      } else {
+        console.error(err);
+        setStatus({ type: 'error', message: 'An unexpected error occurred.' });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -221,6 +226,33 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
       if (selectedCategory === catToRemove) {
           setSelectedCategory(updatedSettings.navCategories[0] || '');
       }
+  };
+
+  const handleCategoryDragStart = (index: number) => {
+      setDraggedCategoryIndex(index);
+  };
+
+  const handleCategoryDragEnter = (index: number) => {
+      if (draggedCategoryIndex === null || draggedCategoryIndex === index) return;
+      setDragOverCategoryIndex(index);
+  };
+
+  const handleCategoryDrop = (index: number) => {
+      if (draggedCategoryIndex === null || draggedCategoryIndex === index) {
+          setDraggedCategoryIndex(null);
+          setDragOverCategoryIndex(null);
+          return;
+      }
+
+      setSettings((prevSettings) => {
+          const updated = [...prevSettings.navCategories];
+          const [moved] = updated.splice(draggedCategoryIndex, 1);
+          updated.splice(index, 0, moved);
+          return { ...prevSettings, navCategories: updated };
+      });
+
+      setDraggedCategoryIndex(null);
+      setDragOverCategoryIndex(null);
   };
 
   const handleRenameCategory = async (catToRename: string) => {
@@ -281,6 +313,33 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
           footerLinks: settings.footerLinks.filter((_, i) => i !== index)
       };
       setSettings(updatedSettings);
+  };
+
+  const handleFooterLinkDragStart = (index: number) => {
+      setDraggedFooterLinkIndex(index);
+  };
+
+  const handleFooterLinkDragEnter = (index: number) => {
+      if (draggedFooterLinkIndex === null || draggedFooterLinkIndex === index) return;
+      setDragOverFooterLinkIndex(index);
+  };
+
+  const handleFooterLinkDrop = (index: number) => {
+      if (draggedFooterLinkIndex === null || draggedFooterLinkIndex === index) {
+          setDraggedFooterLinkIndex(null);
+          setDragOverFooterLinkIndex(null);
+          return;
+      }
+
+      setSettings((prevSettings) => {
+          const updated = [...prevSettings.footerLinks];
+          const [moved] = updated.splice(draggedFooterLinkIndex, 1);
+          updated.splice(index, 0, moved);
+          return { ...prevSettings, footerLinks: updated };
+      });
+
+      setDraggedFooterLinkIndex(null);
+      setDragOverFooterLinkIndex(null);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -598,7 +657,7 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                          {/* Logo Section (NEW) */}
                          <div className="space-y-2">
                             <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Site Logo (Icon)</label>
-                            <div className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">
+                            <div className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl">
                                 <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 flex-shrink-0 bg-slate-100 dark:bg-black/40">
                                     <img src={settings.logoUrl} alt="Logo Preview" className="w-full h-full object-cover" />
                                 </div>
@@ -641,113 +700,283 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                  />
                              </div>
                          </div>
+                        {/* Home Layout (compact selector) */}
+                        <div className="space-y-3 pt-4">
+                             <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Home Layout</label>
+                             <p className="text-[11px] text-slate-400 dark:text-slate-500">Visual preview of how stories are arranged on the homepage (hero stays the same).</p>
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                 <button
+                                     type="button"
+                                     onClick={() => setSettings({ ...settings, homeLayout: 'hero_masonry' })}
+                                     className={`group relative rounded-xl border p-3 text-left transition-all flex flex-col gap-2 ${
+                                         (settings.homeLayout || 'hero_masonry') === 'hero_masonry'
+                                             ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10'
+                                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-black/40 hover:border-slate-300 dark:hover:border-slate-500'
+                                     }`}
+                                 >
+                                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">Masonry</span>
+                                     <div className="space-y-1">
+                                         <div className="h-2.5 rounded-md bg-slate-200 dark:bg-slate-700 w-5/6" />
+                                         <div className="grid grid-cols-3 gap-1 mt-1">
+                                             <div className="col-span-2 h-8 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="col-span-1 h-8 rounded-md bg-slate-100 dark:bg-slate-900" />
+                                             <div className="col-span-1 h-6 rounded-md bg-slate-100 dark:bg-slate-900" />
+                                             <div className="col-span-2 h-6 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                         </div>
+                                     </div>
+                                 </button>
+                                 <button
+                                     type="button"
+                                     onClick={() => setSettings({ ...settings, homeLayout: 'hero_grid' })}
+                                     className={`group relative rounded-xl border p-3 text-left transition-all flex flex-col gap-2 ${
+                                         settings.homeLayout === 'hero_grid'
+                                             ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10'
+                                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-black/40 hover:border-slate-300 dark:hover:border-slate-500'
+                                     }`}
+                                 >
+                                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">Grid</span>
+                                     <div className="space-y-1">
+                                         <div className="h-2.5 rounded-md bg-slate-200 dark:bg-slate-700 w-5/6" />
+                                         <div className="grid grid-cols-2 gap-1 mt-1">
+                                             <div className="h-8 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="h-8 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="h-8 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="h-8 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                         </div>
+                                     </div>
+                                 </button>
+                                 <button
+                                     type="button"
+                                     onClick={() => setSettings({ ...settings, homeLayout: 'hero_list' })}
+                                     className={`group relative rounded-xl border p-3 text-left transition-all flex flex-col gap-2 ${
+                                         settings.homeLayout === 'hero_list'
+                                             ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10'
+                                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-black/40 hover:border-slate-300 dark:hover:border-slate-500'
+                                     }`}
+                                 >
+                                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">Editorial</span>
+                                     <div className="space-y-1">
+                                         <div className="h-2.5 rounded-md bg-slate-200 dark:bg-slate-700 w-5/6" />
+                                         <div className="space-y-1 mt-1">
+                                             <div className="h-5 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="h-5 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                             <div className="h-5 rounded-md bg-slate-200 dark:bg-slate-800" />
+                                         </div>
+                                     </div>
+                                 </button>
+                             </div>
+                        </div>
                     </div>
 
                     {/* Footer Links Manager */}
-                    <div className="space-y-4 pt-6">
-                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
-                             <Globe size={18} /> Footer Links
-                         </h3>
+                    <div className="space-y-3 pt-6">
+                         <button
+                             type="button"
+                             onClick={() => {
+                                 const next = !isFooterLinksOpen;
+                                 setIsFooterLinksOpen(next);
+                                 if (next) {
+                                     setIsNavMenuOpen(false);
+                                 }
+                             }}
+                             className="w-full flex items-center justify-between gap-2 text-left px-1"
+                         >
+                             <span className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                                 <Globe size={18} /> Footer Links
+                             </span>
+                             <span className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                                 {settings.footerLinks.length > 0
+                                     ? `${settings.footerLinks.length} link${settings.footerLinks.length > 1 ? 's' : ''}`
+                                     : 'Hidden if empty'}
+                                 <span
+                                     className={`transition-transform duration-200 inline-block ${
+                                         isFooterLinksOpen ? 'rotate-180' : ''
+                                     }`}
+                                 >
+                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                         <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                     </svg>
+                                 </span>
+                             </span>
+                         </button>
                          
-                         <div className="bg-white dark:bg-white/5 p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm">
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                 <input 
-                                    type="text"
-                                    value={newLinkLabel}
-                                    onChange={(e) => setNewLinkLabel(e.target.value)}
-                                    placeholder="Label (e.g. LinkedIn)"
-                                    className="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
-                                 />
-                                 <div className="flex gap-2">
-                                    <input 
+                         {isFooterLinksOpen && (
+                             <div className="bg-white dark:bg-white/5 p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm">
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                     <input 
                                         type="text"
-                                        value={newLinkUrl}
-                                        onChange={(e) => setNewLinkUrl(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
-                                        placeholder="URL (https://...)"
-                                        className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
-                                    />
-                                    <button 
-                                        onClick={handleAddLink}
-                                        disabled={!newLinkLabel.trim() || !newLinkUrl.trim()}
-                                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center"
-                                    >
-                                        <Plus size={16} />
-                                    </button>
+                                        value={newLinkLabel}
+                                        onChange={(e) => setNewLinkLabel(e.target.value)}
+                                        placeholder="Label (e.g. LinkedIn)"
+                                        className="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                     />
+                                     <div className="flex gap-2">
+                                        <input 
+                                            type="text"
+                                            value={newLinkUrl}
+                                            onChange={(e) => setNewLinkUrl(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
+                                            placeholder="URL (https://...)"
+                                            className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                        <button 
+                                            onClick={handleAddLink}
+                                            disabled={!newLinkLabel.trim() || !newLinkUrl.trim()}
+                                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                     </div>
+                                 </div>
+
+                                 <div className="space-y-2">
+                                     {settings.footerLinks.length === 0 ? (
+                                         <p className="text-slate-400 italic text-sm text-center py-2">No custom footer links. This section will be hidden.</p>
+                                     ) : (
+                                        settings.footerLinks.map((link, idx) => (
+                                            <div
+                                                key={idx}
+                                                draggable
+                                                onDragStart={() => handleFooterLinkDragStart(idx)}
+                                                onDragEnter={(e) => {
+                                                    e.preventDefault();
+                                                    handleFooterLinkDragEnter(idx);
+                                                }}
+                                                onDragOver={(e) => e.preventDefault()}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    handleFooterLinkDrop(idx);
+                                                }}
+                                                onDragEnd={() => {
+                                                    setDraggedFooterLinkIndex(null);
+                                                    setDragOverFooterLinkIndex(null);
+                                                }}
+                                                className={`group flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 transition-all cursor-move ${
+                                                    dragOverFooterLinkIndex === idx
+                                                        ? 'ring-2 ring-indigo-500/60 border-indigo-400 bg-indigo-50 dark:bg-indigo-500/20'
+                                                        : ''
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <GripVertical size={14} className="text-slate-400 dark:text-slate-500" />
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{link.label}</span>
+                                                        <span className="text-xs text-slate-400 truncate max-w-[200px]">{link.url}</span>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleRemoveLink(idx)}
+                                                    className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-2"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ))
+                                     )}
                                  </div>
                              </div>
-
-                             <div className="space-y-2">
-                                 {settings.footerLinks.length === 0 ? (
-                                     <p className="text-slate-400 italic text-sm text-center py-2">No custom footer links. This section will be hidden.</p>
-                                 ) : (
-                                    settings.footerLinks.map((link, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{link.label}</span>
-                                                <span className="text-xs text-slate-400 truncate max-w-[200px]">{link.url}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleRemoveLink(idx)}
-                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-2"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    ))
-                                 )}
-                             </div>
-                         </div>
+                         )}
                     </div>
 
                     {/* Category Manager */}
-                    <div className="space-y-4 pt-6">
-                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
-                             <Layout size={18} /> Navigation Menu
-                         </h3>
-                         
-                         <div className="bg-white dark:bg-white/5 p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm">
-                             <div className="flex gap-2 mb-6">
-                                 <input 
-                                    type="text"
-                                    value={newCategory}
-                                    onChange={(e) => setNewCategory(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                                    placeholder="New Category Name..."
-                                    className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
-                                 />
-                                 <button 
-                                    onClick={handleAddCategory}
-                                    disabled={!newCategory.trim()}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
+                    <div className="space-y-3 pt-6">
+                         <button
+                             type="button"
+                             onClick={() => {
+                                 const next = !isNavMenuOpen;
+                                 setIsNavMenuOpen(next);
+                                 if (next) {
+                                     setIsFooterLinksOpen(false);
+                                 }
+                             }}
+                             className="w-full flex items-center justify-between gap-2 text-left px-1"
+                         >
+                             <span className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                                 <Layout size={18} /> Navigation Menu
+                             </span>
+                             <span className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                                 {settings.navCategories.length > 0
+                                     ? `${settings.navCategories.length} categor${settings.navCategories.length === 1 ? 'y' : 'ies'}`
+                                     : 'No categories yet'}
+                                 <span
+                                     className={`transition-transform duration-200 inline-block ${
+                                         isNavMenuOpen ? 'rotate-180' : ''
+                                     }`}
                                  >
-                                     <Plus size={16} /> Add
-                                 </button>
-                             </div>
+                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                         <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                     </svg>
+                                 </span>
+                             </span>
+                         </button>
+                         
+                         {isNavMenuOpen && (
+                             <div className="bg-white dark:bg-white/5 p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm">
+                                 <div className="flex gap-2 mb-6">
+                                     <input 
+                                        type="text"
+                                        value={newCategory}
+                                        onChange={(e) => setNewCategory(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                                        placeholder="New Category Name..."
+                                        className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                     />
+                                     <button 
+                                        onClick={handleAddCategory}
+                                        disabled={!newCategory.trim()}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
+                                     >
+                                         <Plus size={16} /> Add
+                                     </button>
+                                 </div>
 
-                             <div className="flex flex-wrap gap-2">
-                                 {settings.navCategories.map((cat) => (
-                                     <div key={cat} className="group flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 text-sm font-medium transition-all hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/20">
-                                         <span>{cat}</span>
-                                         <button 
-                                            onClick={() => handleRenameCategory(cat)}
-                                            className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"
+                                 <div className="flex flex-wrap gap-2">
+                                     {settings.navCategories.map((cat, index) => (
+                                         <div
+                                             key={cat}
+                                             draggable
+                                             onDragStart={() => handleCategoryDragStart(index)}
+                                             onDragEnter={(e) => {
+                                                 e.preventDefault();
+                                                 handleCategoryDragEnter(index);
+                                             }}
+                                             onDragOver={(e) => e.preventDefault()}
+                                             onDrop={(e) => {
+                                                 e.preventDefault();
+                                                 handleCategoryDrop(index);
+                                             }}
+                                             onDragEnd={() => {
+                                                 setDraggedCategoryIndex(null);
+                                                 setDragOverCategoryIndex(null);
+                                             }}
+                                             className={`group flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 text-sm font-medium transition-all hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-move ${
+                                                 dragOverCategoryIndex === index
+                                                     ? 'ring-2 ring-indigo-500/60 border-indigo-400 bg-indigo-50 dark:bg-indigo-500/20'
+                                                     : ''
+                                             }`}
                                          >
-                                             <PenTool size={14} />
-                                         </button>
-                                         <button 
-                                            onClick={() => handleRemoveCategory(cat)}
-                                            className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                                         >
-                                             <Trash2 size={14} />
-                                         </button>
-                                     </div>
-                                 ))}
-                                 {settings.navCategories.length === 0 && (
-                                     <p className="text-slate-400 italic text-sm">No categories configured. The navigation bar will be empty.</p>
-                                 )}
+                                             <GripVertical size={14} className="text-slate-400 dark:text-slate-500" />
+                                             <span>{cat}</span>
+                                             <button 
+                                                onClick={() => handleRenameCategory(cat)}
+                                                className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"
+                                             >
+                                                 <PenTool size={14} />
+                                             </button>
+                                             <button 
+                                                onClick={() => handleRemoveCategory(cat)}
+                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                             >
+                                                 <Trash2 size={14} />
+                                             </button>
+                                         </div>
+                                     ))}
+                                     {settings.navCategories.length === 0 && (
+                                         <p className="text-slate-400 italic text-sm">No categories configured. The navigation bar will be empty.</p>
+                                     )}
+                                 </div>
                              </div>
-                         </div>
+                         )}
                     </div>
 
                 </div>
