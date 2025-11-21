@@ -176,3 +176,34 @@ export async function saveSettingsToApi(settings: AppSettings): Promise<AppSetti
   settingsCache = merged;
   return merged;
 }
+
+export async function renameCategoryInApi(oldName: string, newName: string): Promise<AppSettings> {
+  if (typeof window === 'undefined') {
+    const updated: AppSettings = {
+      ...DEFAULT_APP_SETTINGS,
+      navCategories: DEFAULT_APP_SETTINGS.navCategories.map(c => (c === oldName ? newName : c)),
+      contactEmail: DEFAULT_APP_SETTINGS.contactEmail,
+      footerDescription: DEFAULT_APP_SETTINGS.footerDescription,
+      footerLinks: DEFAULT_APP_SETTINGS.footerLinks,
+      logoUrl: DEFAULT_APP_SETTINGS.logoUrl,
+      siteName: DEFAULT_APP_SETTINGS.siteName,
+    };
+    return updated;
+  }
+
+  const data = await fetchJson<{ settings: any }>('/categories', {
+    method: 'PUT',
+    body: JSON.stringify({ oldName, newName }),
+  });
+
+  const raw = data.settings || {};
+  const merged: AppSettings = {
+    ...DEFAULT_APP_SETTINGS,
+    ...raw,
+    footerLinks: Array.isArray(raw.footerLinks) ? raw.footerLinks : [],
+    logoUrl: raw.logoUrl || DEFAULT_APP_SETTINGS.logoUrl,
+  };
+
+  settingsCache = merged;
+  return merged;
+}

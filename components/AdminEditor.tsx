@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe } from 'lucide-react';
 import { normalizeArticle, getSettings, AppSettings, getArticles } from '../services/data';
-import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi } from '../services/api';
+import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi, renameCategoryInApi } from '../services/api';
+
+import { Article } from '../types';
 import { searchMedia } from '../services/pexels';
 
 interface Props {
   onClose: () => void;
+  onSettingsUpdated?: (settings: AppSettings) => void;
+  onArticlesUpdated?: (articles: Article[]) => void;
 }
 
 type Tab = 'IMPORT' | 'CONFIG' | 'MANAGE';
 
-const AdminEditor: React.FC<Props> = ({ onClose }) => {
+const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUpdated }) => {
   const [activeTab, setActiveTab] = useState<Tab>('IMPORT');
   
   // -- Config State (Loaded first to populate dropdowns) --
@@ -165,6 +169,9 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
         const saved = await saveArticleToApi(article);
         const updatedList = await getArticlesFromApi();
         setArticleList(updatedList);
+        if (onArticlesUpdated) {
+          onArticlesUpdated(updatedList);
+        }
         setStatus({ type: 'success', message: 'Article Published Successfully!' });
 
         setTimeout(() => {
@@ -216,6 +223,46 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
       }
   };
 
+  const handleRenameCategory = async (catToRename: string) => {
+      const proposed = window.prompt('Rename category', catToRename);
+      if (!proposed) return;
+      const trimmed = proposed.trim();
+      if (!trimmed || trimmed === catToRename) return;
+      if (settings.navCategories.includes(trimmed)) {
+          setStatus({ type: 'error', message: 'A category with that name already exists.' });
+          setTimeout(() => setStatus(null), 2000);
+          return;
+      }
+
+      setIsProcessing(true);
+      setStatus({ type: 'info', message: 'Renaming category…' });
+
+      try {
+          const updatedSettings = await renameCategoryInApi(catToRename, trimmed);
+          setSettings(updatedSettings);
+          if (onSettingsUpdated) {
+              onSettingsUpdated(updatedSettings);
+          }
+          if (selectedCategory === catToRename) {
+              setSelectedCategory(trimmed);
+          }
+
+          const updatedArticles = await getArticlesFromApi();
+          setArticleList(updatedArticles);
+          if (onArticlesUpdated) {
+              onArticlesUpdated(updatedArticles);
+          }
+
+          setStatus({ type: 'success', message: 'Category renamed successfully.' });
+          setTimeout(() => setStatus(null), 2000);
+      } catch (e: any) {
+          console.error('Rename category error:', e);
+          setStatus({ type: 'error', message: e.message || 'Failed to rename category.' });
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
   const handleAddLink = () => {
       if (!newLinkLabel.trim() || !newLinkUrl.trim()) return;
       
@@ -252,6 +299,9 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
       try {
         const saved = await saveSettingsToApi(settings);
         setSettings(saved);
+        if (onSettingsUpdated) {
+          onSettingsUpdated(saved);
+        }
         setStatus({ type: 'success', message: 'Configuration Saved!' });
         setTimeout(() => setStatus(null), 2000);
       } catch (e: any) {
@@ -267,6 +317,9 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
               // Force a fresh read from the source of truth to ensure UI sync
               const updatedList = await getArticlesFromApi();
               setArticleList([...updatedList]); 
+              if (onArticlesUpdated) {
+                onArticlesUpdated(updatedList);
+              }
               setStatus({ type: 'success', message: 'Article deleted.' });
               setTimeout(() => setStatus(null), 2000);
           } catch (e) {
@@ -371,7 +424,7 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
                                     value={urlInput}
                                     onChange={(e) => setUrlInput(e.target.value)}
                                     placeholder="https://api.site.com/article.json"
-                                    className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-all"
                                 />
                                 <button 
                                     onClick={handleUrlFetch}
@@ -426,7 +479,7 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
                                 setJsonInput(e.target.value);
                                 tryAutoSelectCategory(e.target.value);
                             }}
-                            className="w-full h-64 bg-white dark:bg-black/60 border border-slate-200 dark:border-white/10 rounded-xl p-5 text-sm font-mono text-slate-800 dark:text-emerald-300 focus:outline-none focus:border-indigo-500/50 resize-y leading-relaxed shadow-sm"
+                            className="w-full h-64 bg-white dark:bg-black/60 border border-slate-200 dark:border-white/10 rounded-xl p-5 text-sm font-mono text-slate-800 dark:text-emerald-300 focus:outline-none focus:border-indigo-500 transition-all resize-y leading-relaxed shadow-sm"
                             placeholder='Paste content manually or use import tools above...'
                         />
                         {!jsonInput && (
@@ -531,7 +584,7 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
                              <div className="space-y-2">
                                  <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Contact Email</label>
                                  <div className="relative">
-                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                     <Mail className="absolute left-3 top-3 text-slate-400" size={16} />
                                      <input 
                                         type="email"
                                         value={settings.contactEmail}
@@ -676,6 +729,12 @@ const AdminEditor: React.FC<Props> = ({ onClose }) => {
                                  {settings.navCategories.map((cat) => (
                                      <div key={cat} className="group flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 text-sm font-medium transition-all hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/20">
                                          <span>{cat}</span>
+                                         <button 
+                                            onClick={() => handleRenameCategory(cat)}
+                                            className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"
+                                         >
+                                             <PenTool size={14} />
+                                         </button>
                                          <button 
                                             onClick={() => handleRemoveCategory(cat)}
                                             className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"

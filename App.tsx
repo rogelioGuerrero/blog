@@ -416,7 +416,11 @@ function App() {
                 )}
 
                 {view === 'ADMIN' && (
-                    <AdminEditor onClose={handleHomeClick} />
+                    <AdminEditor 
+                      onClose={handleHomeClick}
+                      onSettingsUpdated={(updated) => setSettings(updated)}
+                      onArticlesUpdated={(updatedArticles) => setArticles(updatedArticles)}
+                    />
                 )}
             </>
         )}
