@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe, GripVertical } from 'lucide-react';
+import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe, GripVertical, Star } from 'lucide-react';
 
 import { normalizeArticle, getSettings, AppSettings, getArticles } from '../services/data';
 import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi, renameCategoryInApi } from '../services/api';
@@ -369,6 +369,34 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   };
 
   // --- MANAGE HANDLERS ---
+  const handleToggleFeatured = async (article: Article) => {
+      try {
+          setIsProcessing(true);
+          const updated = await saveArticleToApi({
+              ...article,
+              featured: !article.featured,
+          });
+
+          const updatedList = await getArticlesFromApi();
+          setArticleList(updatedList);
+          if (onArticlesUpdated) {
+              onArticlesUpdated(updatedList);
+          }
+
+          setStatus({
+              type: 'success',
+              message: updated.featured ? 'Article marked as featured.' : 'Article unmarked as featured.',
+          });
+          setTimeout(() => setStatus(null), 2000);
+      } catch (e) {
+          console.error('Toggle featured error:', e);
+          setStatus({ type: 'error', message: 'Failed to update featured status.' });
+          setTimeout(() => setStatus(null), 2000);
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
   const handleDeleteArticle = async (id: string) => {
       if (window.confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
           try {
@@ -573,6 +601,7 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                          <tr>
                                              <th className="px-6 py-4">Article</th>
                                              <th className="px-6 py-4">Category</th>
+                                             <th className="px-6 py-4 text-center">Featured</th>
                                              <th className="px-6 py-4 text-center">Views</th>
                                              <th className="px-6 py-4 text-right">Actions</th>
                                          </tr>
@@ -596,6 +625,18 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                                      <span className="inline-block px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                          {article.category}
                                                      </span>
+                                                 </td>
+                                                 <td className="px-6 py-4 text-center">
+                                                     <button
+                                                         onClick={() => handleToggleFeatured(article)}
+                                                         className="inline-flex items-center justify-center p-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+                                                         title={article.featured ? 'Unmark as featured' : 'Mark as featured'}
+                                                     >
+                                                         <Star
+                                                             size={16}
+                                                             className={article.featured ? 'text-amber-500 fill-amber-400' : 'text-slate-400'}
+                                                         />
+                                                     </button>
                                                  </td>
                                                  <td className="px-6 py-4 text-center font-mono text-slate-500 dark:text-slate-400">
                                                      {article.views?.toLocaleString() || 0}
