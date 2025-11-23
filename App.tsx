@@ -274,6 +274,10 @@ function App() {
 
   const handlePlayAudio = (article: Article) => {
     if (!article.audioUrl) return;
+    if (!/^https?:\/\//.test(article.audioUrl) && !article.audioUrl.startsWith('data:audio')) {
+        console.warn('Invalid audio URL, skipping audio playback:', article.audioUrl);
+        return;
+    }
     if (audioState.articleId === article.id) {
         setAudioState({ src: null, title: null, articleId: null });
         return;

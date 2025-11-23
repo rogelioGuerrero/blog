@@ -104,6 +104,11 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, title, onClose }) => {
           src={src} 
           onTimeUpdate={handleTimeUpdate} 
           onEnded={() => setIsPlaying(false)} 
+          onError={(e) => {
+            console.error('Audio failed to load', e);
+            setIsPlaying(false);
+            onClose();
+          }}
         />
       </div>
     </div>

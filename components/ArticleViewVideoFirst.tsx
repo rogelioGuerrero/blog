@@ -241,7 +241,7 @@ const ArticleViewVideoFirst: React.FC<Props> = ({ article, onBack, onNavigate, o
               <MediaCarousel
                 media={article.media}
                 overlay={
-                  article.audioUrl ? (
+                  article.audioUrl && (/^https?:\/\//.test(article.audioUrl) || article.audioUrl.startsWith('data:audio')) ? (
                     <button
                       onClick={() => onPlayAudio(article)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/90 dark:bg-slate-900/90 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg hover:bg-slate-900 transition-colors"

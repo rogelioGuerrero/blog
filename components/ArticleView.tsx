@@ -189,7 +189,7 @@ const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio
                 </div>
 
                 <div className="flex gap-3">
-                    {article.audioUrl && (
+                    {article.audioUrl && (/^https?:\/\//.test(article.audioUrl) || article.audioUrl.startsWith('data:audio')) && (
                         <button 
                             onClick={() => onPlayAudio(article)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-full border transition-all text-xs font-bold uppercase tracking-widest shadow-sm ${

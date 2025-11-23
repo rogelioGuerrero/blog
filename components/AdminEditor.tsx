@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe, GripVertical, Star } from 'lucide-react';
+import { Save, Image as ImageIcon, X, Wand2, Upload, Link as LinkIcon, FileJson, CheckCircle2, AlertCircle, Settings, Layout, Plus, Trash2, PenTool, Tag, FileText, List, Mail, AlignLeft, Eye, Globe, GripVertical, Star, Volume2 } from 'lucide-react';
 
 import { normalizeArticle, getSettings, AppSettings, getArticles } from '../services/data';
 import { getArticlesFromApi, getSettingsFromApi, saveArticleToApi, saveSettingsToApi, deleteArticleFromApi, renameCategoryInApi } from '../services/api';
@@ -28,6 +28,7 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
 
   // -- Manage State --
   const [articleList, setArticleList] = useState(getArticles());
+  const [cleanupWeeks, setCleanupWeeks] = useState<number>(4);
 
   // -- Import State --
   const [jsonInput, setJsonInput] = useState('');
@@ -35,7 +36,10 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   const [selectedCategory, setSelectedCategory] = useState<string>(settings.navCategories[0] || 'General');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  
+  const [jsonHasAudioField, setJsonHasAudioField] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioUrlOverride, setAudioUrlOverride] = useState('');
+
   const [isFooterLinksOpen, setIsFooterLinksOpen] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
@@ -45,6 +49,7 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
 
   // Load latest settings and articles from API on mount (fallback a la capa local si falla)
   useEffect(() => {
@@ -78,12 +83,17 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   const tryAutoSelectCategory = (jsonString: string) => {
       try {
           const parsed = JSON.parse(jsonString);
-          const candidate = parsed.article?.category || parsed.category;
+          const articleNode = parsed.article ? parsed.article : parsed;
+          const candidate = articleNode.category;
           if (candidate && settings.navCategories.includes(candidate)) {
               setSelectedCategory(candidate);
           }
+
+          const hasAudio = typeof articleNode.audioUrl === 'string' && articleNode.audioUrl.trim().length > 0;
+          setJsonHasAudioField(hasAudio);
       } catch (e) {
           // Ignore parsing errors at this stage
+          setJsonHasAudioField(false);
       }
   };
 
@@ -98,6 +108,8 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
       const text = e.target?.result;
       if (typeof text === 'string') {
         setJsonInput(text);
+        setAudioFile(null);
+        setAudioUrlOverride('');
         tryAutoSelectCategory(text);
         setStatus({ type: 'success', message: `Loaded file: ${file.name}` });
       }
@@ -116,6 +128,8 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
           const data = await res.json();
           const text = JSON.stringify(data, null, 2);
           setJsonInput(text);
+          setAudioFile(null);
+          setAudioUrlOverride('');
           tryAutoSelectCategory(text);
           setStatus({ type: 'success', message: 'JSON loaded from URL' });
       } catch (e) {
@@ -139,6 +153,36 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
 
       // OVERRIDE CATEGORY with the one selected in UI
       articleData.category = selectedCategory;
+
+      let finalAudioUrl: string | undefined = undefined;
+
+      if (audioFile) {
+        const fileDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result;
+            if (typeof result === 'string') {
+              resolve(result);
+            } else {
+              reject(new Error('Failed to read audio file'));
+            }
+          };
+          reader.onerror = () => reject(new Error('Failed to read audio file'));
+          reader.readAsDataURL(audioFile);
+        });
+        finalAudioUrl = fileDataUrl;
+      } else if (audioUrlOverride.trim()) {
+        finalAudioUrl = audioUrlOverride.trim();
+      } else if (typeof articleData.audioUrl === 'string') {
+        const trimmed = articleData.audioUrl.trim();
+        if (/^https?:\/\//.test(trimmed) || trimmed.startsWith('data:audio')) {
+          finalAudioUrl = trimmed;
+        } else {
+          finalAudioUrl = undefined;
+        }
+      }
+
+      articleData.audioUrl = finalAudioUrl;
 
       const article = normalizeArticle(articleData);
 
@@ -192,6 +236,11 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleAudioFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setAudioFile(file);
   };
 
   // --- CONFIG HANDLERS ---
@@ -416,6 +465,47 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
       }
   };
 
+  const handleBulkDeleteOldArticles = async () => {
+      const now = Date.now();
+      const cutoffMs = cleanupWeeks * 7 * 24 * 60 * 60 * 1000;
+
+      const eligible = articleList.filter((article) => {
+          const t = new Date(article.date).getTime();
+          if (isNaN(t)) return false;
+          return now - t > cutoffMs;
+      });
+
+      if (!eligible.length) {
+          return;
+      }
+
+      const labelWeeks = cleanupWeeks === 1 ? '1 week' : `${cleanupWeeks} weeks`;
+      const confirmed = window.confirm(
+          `Delete ${eligible.length} article(s) older than ${labelWeeks}? This cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      try {
+          setIsProcessing(true);
+          for (const art of eligible) {
+              await deleteArticleFromApi(art.id);
+          }
+          const updatedList = await getArticlesFromApi();
+          setArticleList(updatedList);
+          if (onArticlesUpdated) {
+              onArticlesUpdated(updatedList);
+          }
+          setStatus({ type: 'success', message: `${eligible.length} article(s) deleted.` });
+          setTimeout(() => setStatus(null), 2500);
+      } catch (e) {
+          console.error('Bulk delete error:', e);
+          setStatus({ type: 'error', message: 'Failed to delete some articles.' });
+          setTimeout(() => setStatus(null), 2500);
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 animate-fade-in bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm fixed inset-0 z-50 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
@@ -554,6 +644,54 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                          </div>
                     </div>
 
+                    {jsonHasAudioField && (
+                      <div className="bg-white dark:bg-white/5 p-4 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm flex flex-col md:flex-row md:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
+                            <Upload size={18} />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Audio for this article</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Optional: upload an audio file or provide an existing URL.</p>
+                          </div>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              ref={audioFileInputRef}
+                              className="hidden"
+                              onChange={handleAudioFileSelect}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => audioFileInputRef.current?.click()}
+                              className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all"
+                            >
+                              <Upload size={14} className="mr-1.5" /> Upload audio file
+                            </button>
+                            {audioFile && (
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                                {audioFile.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={audioUrlOverride}
+                              onChange={(e) => setAudioUrlOverride(e.target.value)}
+                              placeholder="https://... or data:audio/..."
+                              className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                            If both are set, the uploaded file takes priority. Leave both empty to import without audio.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {/* Main Editor Area */}
                     <div className="relative group">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 flex justify-between">
@@ -584,9 +722,31 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
             {/* === TAB: MANAGE === */}
             {activeTab === 'MANAGE' && (
                 <div className="animate-fade-in space-y-4">
-                     <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-6">
-                         <List size={18} /> Published Articles
-                     </h3>
+                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                             <List size={18} /> Published Articles
+                         </h3>
+                         <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                             <span className="uppercase tracking-widest font-semibold">Cleanup</span>
+                             <select
+                               value={cleanupWeeks}
+                               onChange={(e) => setCleanupWeeks(Number(e.target.value) || 4)}
+                               className="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                             >
+                               <option value={2}>Older than 2 weeks</option>
+                               <option value={4}>Older than 4 weeks</option>
+                               <option value={8}>Older than 8 weeks</option>
+                             </select>
+                             <button
+                               type="button"
+                               onClick={handleBulkDeleteOldArticles}
+                               disabled={isProcessing || !articleList.length}
+                               className="inline-flex items-center gap-1 rounded-full px-3 py-1 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                             >
+                               <Trash2 size={12} /> Delete old
+                             </button>
+                         </div>
+                     </div>
                      
                      {articleList.length === 0 ? (
                          <div className="text-center py-12 bg-white dark:bg-white/5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
@@ -601,6 +761,7 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                          <tr>
                                              <th className="px-6 py-4">Article</th>
                                              <th className="px-6 py-4">Category</th>
+                                             <th className="px-6 py-4 text-center">Audio</th>
                                              <th className="px-6 py-4 text-center">Featured</th>
                                              <th className="px-6 py-4 text-center">Views</th>
                                              <th className="px-6 py-4 text-right">Actions</th>
@@ -625,6 +786,15 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                                      <span className="inline-block px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                          {article.category}
                                                      </span>
+                                                 </td>
+                                                 <td className="px-6 py-4 text-center">
+                                                     {article.audioUrl ? (
+                                                         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/30" title="Has audio">
+                                                             <Volume2 size={14} />
+                                                         </div>
+                                                     ) : (
+                                                         <span className="text-[11px] text-slate-400 dark:text-slate-600">–</span>
+                                                     )}
                                                  </td>
                                                  <td className="px-6 py-4 text-center">
                                                      <button
