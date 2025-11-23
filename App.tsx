@@ -275,7 +275,8 @@ function App() {
   const handlePlayAudio = (article: Article) => {
     if (!article.audioUrl) return;
     if (audioState.articleId === article.id) {
-        return; 
+        setAudioState({ src: null, title: null, articleId: null });
+        return;
     }
     setAudioState({
         src: article.audioUrl,

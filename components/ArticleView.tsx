@@ -151,7 +151,7 @@ const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio
       <div className="max-w-[720px] mx-auto bg-transparent">
         
         {/* Minimal Navigation */}
-        <div className="mb-12 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div className="mt-4 mb-12 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
             <button 
                 onClick={onBack}
                 className="group flex items-center gap-2 text-slate-500 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-xs font-sans font-medium uppercase tracking-widest"

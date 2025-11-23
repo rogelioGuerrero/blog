@@ -10,9 +10,10 @@ interface MediaItem {
 
 interface Props {
   media: MediaItem[];
+  overlay?: React.ReactNode;
 }
 
-const MediaCarousel: React.FC<Props> = ({ media }) => {
+const MediaCarousel: React.FC<Props> = ({ media, overlay }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const prev = () => {
@@ -46,6 +47,11 @@ const MediaCarousel: React.FC<Props> = ({ media }) => {
                 alt="Article Media"
                 className="w-full h-full object-cover"
                 />
+            )}
+            {overlay && (
+              <div className="absolute bottom-4 left-4 z-30">
+                {overlay}
+              </div>
             )}
         </div>
         
