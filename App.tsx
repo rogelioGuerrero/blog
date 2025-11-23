@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import ArticleView from './components/ArticleView';
+import ArticleViewVideoFirst from './components/ArticleViewVideoFirst';
 import AudioPlayer from './components/AudioPlayer';
 import AdminEditor from './components/AdminEditor';
 import Footer from './components/Footer';
@@ -36,6 +37,7 @@ function App() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   const allArticles = articles;
   const featuredArticle = allArticles.find(a => a.featured) || allArticles[0];
@@ -141,6 +143,18 @@ function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const update = () => {
+      if (typeof window !== 'undefined') {
+        setIsMobile(window.innerWidth < 768);
+      }
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
   // 2. Handle Browser Back/Forward Buttons
@@ -655,6 +669,23 @@ function App() {
                       .filter(a => a.category === current.category && a.id !== current.id)
                       .slice(0, 3);
 
+                    const hasVideo = current.media.some(m => m.type === 'video');
+                    const useVideoFirstLayout = isMobile && hasVideo;
+
+                    if (useVideoFirstLayout) {
+                      return (
+                        <ArticleViewVideoFirst
+                          article={current}
+                          onBack={handleHomeClick}
+                          onNavigate={handleArticleClick}
+                          onPlayAudio={handlePlayAudio}
+                          isPlayingCurrent={audioState.articleId === selectedArticleId}
+                          relatedArticles={related}
+                          settings={settings}
+                        />
+                      );
+                    }
+
                     return (
                       <ArticleView 
                         article={current} 
@@ -668,7 +699,6 @@ function App() {
                     );
                   })()
                 )}
-
                 {view === 'ADMIN' && (
                     <AdminEditor 
                       onClose={handleHomeClick}
