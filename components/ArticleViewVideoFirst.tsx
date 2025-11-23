@@ -240,6 +240,9 @@ const ArticleViewVideoFirst: React.FC<Props> = ({ article, onBack, onNavigate, o
             <div className="mb-6">
               <MediaCarousel
                 media={article.media}
+                autoAdvance
+                autoAdvanceIntervalMs={6000}
+                hideArrows
                 overlay={
                   article.audioUrl && (/^https?:\/\//.test(article.audioUrl) || article.audioUrl.startsWith('data:audio')) ? (
                     <button

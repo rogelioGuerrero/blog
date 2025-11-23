@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface MediaItem {
@@ -11,9 +11,18 @@ interface MediaItem {
 interface Props {
   media: MediaItem[];
   overlay?: React.ReactNode;
+  autoAdvance?: boolean;
+  autoAdvanceIntervalMs?: number;
+  hideArrows?: boolean;
 }
 
-const MediaCarousel: React.FC<Props> = ({ media, overlay }) => {
+const MediaCarousel: React.FC<Props> = ({
+  media,
+  overlay,
+  autoAdvance = false,
+  autoAdvanceIntervalMs = 6000,
+  hideArrows = false,
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const prev = () => {
@@ -23,6 +32,18 @@ const MediaCarousel: React.FC<Props> = ({ media, overlay }) => {
   const next = () => {
     setCurrentIndex((prev) => (prev === media.length - 1 ? 0 : prev + 1));
   };
+
+  useEffect(() => {
+    if (!autoAdvance || !media || media.length <= 1) return;
+
+    const id = window.setInterval(() => {
+      setCurrentIndex((prev) => (prev === media.length - 1 ? 0 : prev + 1));
+    }, autoAdvanceIntervalMs);
+
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [autoAdvance, autoAdvanceIntervalMs, media.length]);
 
   if (!media || media.length === 0) return null;
 
@@ -58,22 +79,26 @@ const MediaCarousel: React.FC<Props> = ({ media, overlay }) => {
         {/* Minimal Controls - Visible on hover */}
         {media.length > 1 && (
             <>
-            <button
-                onClick={prev}
-                className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/10 dark:hover:bg-black/30"
-            >
-                <div className="p-2 bg-white/80 dark:bg-black/40 text-slate-900 dark:text-white rounded-full backdrop-blur-sm shadow-sm">
-                    <ChevronLeft size={20} />
-                </div>
-            </button>
-            <button
-                onClick={next}
-                className="absolute right-0 top-0 bottom-0 w-16 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/10 dark:hover:bg-black/30"
-            >
-                <div className="p-2 bg-white/80 dark:bg-black/40 text-slate-900 dark:text-white rounded-full backdrop-blur-sm shadow-sm">
-                    <ChevronRight size={20} />
-                </div>
-            </button>
+            {!hideArrows && (
+              <>
+                <button
+                    onClick={prev}
+                    className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/10 dark:hover:bg-black/30"
+                >
+                    <div className="p-2 bg-white/80 dark:bg-black/40 text-slate-900 dark:text-white rounded-full backdrop-blur-sm shadow-sm">
+                        <ChevronLeft size={20} />
+                    </div>
+                </button>
+                <button
+                    onClick={next}
+                    className="absolute right-0 top-0 bottom-0 w-16 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/10 dark:hover:bg-black/30"
+                >
+                    <div className="p-2 bg-white/80 dark:bg-black/40 text-slate-900 dark:text-white rounded-full backdrop-blur-sm shadow-sm">
+                        <ChevronRight size={20} />
+                    </div>
+                </button>
+              </>
+            )}
             
             {/* Dots Indicator */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
