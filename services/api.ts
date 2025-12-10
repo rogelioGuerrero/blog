@@ -38,9 +38,9 @@ export async function getArticlesFromApi(): Promise<Article[]> {
     articlesCache = normalized;
     return normalized;
   } catch (error) {
-    console.error('Failed to load articles from API, using seed data instead', error);
-    articlesCache = SEED_ARTICLES;
-    return SEED_ARTICLES;
+    console.error('Failed to load articles from API', error);
+    articlesCache = [];
+    return [];
   }
 }
 

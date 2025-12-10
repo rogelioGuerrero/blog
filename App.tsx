@@ -309,8 +309,10 @@ function App() {
       />
 
       <main className="flex-grow pt-24 pb-20 px-4 sm:px-6 lg:px-8">
-        {/* RENDER SKELETONS BASED ON TARGET VIEW IF LOADING */}
-        {isLoading ? (
+        {/* RENDER SKELETONS DURING BOOTSTRAP OR LOADING */}
+        {isBootstrapping ? (
+            <GridSkeleton />
+        ) : isLoading ? (
              view === 'HOME' || view === 'ADMIN' ? (
                  /* Transitioning TO Article from Home, or TO Home from Article */
                  view === 'HOME' ? <ArticleSkeleton /> : <GridSkeleton />

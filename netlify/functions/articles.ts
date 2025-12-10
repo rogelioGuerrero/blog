@@ -130,12 +130,26 @@ export const handler: Handler = async (event) => {
 
       const article = payload;
 
-      if (!article || !article.id || !article.title || !article.excerpt || !article.content) {
+      // Require only id and title explicitly; derive content/excerpt if missing
+      if (!article || !article.id || !article.title) {
         return {
           statusCode: 400,
           headers: corsHeaders,
-          body: JSON.stringify({ error: 'Missing required article fields' }),
+          body: JSON.stringify({ error: 'Missing required article fields: id and title are required' }),
         };
+      }
+
+      // Ensure we always have some content to store
+      if (!article.content) {
+        article.content = article.excerpt || article.title;
+      }
+
+      // Ensure excerpt exists; derive from content or title
+      if (!article.excerpt) {
+        const base = typeof article.content === 'string' && article.content.length > 0
+          ? article.content
+          : article.title;
+        article.excerpt = base.substring(0, 200);
       }
 
       const rows = await sql`INSERT INTO articles (
