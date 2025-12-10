@@ -6,6 +6,8 @@ import AudioPlayer from './components/AudioPlayer';
 import AdminEditor from './components/AdminEditor';
 import Footer from './components/Footer';
 import { GridSkeleton, ArticleSkeleton } from './components/Skeletons';
+import PinModal from './components/PinModal';
+import { GeneratorPanel } from './components/generator';
 import { getArticlesFromApi, getSettingsFromApi, incrementArticleViewApi } from './services/api';
 import { DEFAULT_APP_SETTINGS } from './services/data';
 import { Article, AppSettings, ViewState } from './types';
@@ -38,6 +40,10 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Generator & PIN Modal State
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [showGenerator, setShowGenerator] = useState(false);
 
   const allArticles = articles;
   const featuredArticle = allArticles.find(a => a.featured) || allArticles[0];
@@ -260,9 +266,18 @@ function App() {
         setIsLoading(false);
     }, 500);
   };
-  
+
   const handleSecretAccess = () => {
-      setView('ADMIN');
+      setShowPinModal(true);
+  };
+
+  const handlePinSuccess = () => {
+      setShowGenerator(true);
+  };
+
+  const handleArticleSaved = (savedArticle: Article) => {
+      setArticles(prev => [savedArticle, ...prev.filter(a => a.id !== savedArticle.id)]);
+      setDataVersion(v => v + 1);
   };
 
   const handleArchiveClick = () => {
@@ -723,6 +738,20 @@ function App() {
         src={audioState.src} 
         title={audioState.title} 
         onClose={handleCloseAudio} 
+      />
+
+      {/* PIN Modal for Generator Access */}
+      <PinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={handlePinSuccess}
+      />
+
+      {/* AI Article Generator Panel */}
+      <GeneratorPanel
+        isOpen={showGenerator}
+        onClose={() => setShowGenerator(false)}
+        onArticleSaved={handleArticleSaved}
       />
     </div>
   );
