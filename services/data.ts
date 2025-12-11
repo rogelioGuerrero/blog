@@ -8,144 +8,24 @@ export { type AppSettings };
 
 /**
  * INTEGRATION POINT:
- * Initial Seed Data.
+ * Initial Seed Data - Empty by default, data comes from API/Neon
  */
-const SEED_DATA: any[] = [
-  {
-    id: '1',
-    title: "The Quantum Leap: Computing's Next Frontier",
-    excerpt: "How silicon qubits are reshaping the landscape of modern cryptography and complex problem solving in ways we never imagined.",
-    content: `
-## The Dawn of Qubits
+const SEED_DATA: any[] = [];
 
-We stand at the precipice of a new era. Quantum computing is no longer just a theoretical concept confined to physics papers; it is becoming a tangible reality.
-
-> "Nature isn't classical, dammit, and if you want to make a simulation of nature, you'd better make it quantum mechanical." - Richard Feynman
-
-Traditional computers use bits—0s and 1s. Quantum computers use **qubits**. This fundamental difference allows for superposition, where a qubit can exist in multiple states simultaneously.
-
-### Why This Matters
-
-1.  **Cryptography:** Current encryption standards could be rendered obsolete.
-2.  **Drug Discovery:** Simulating molecular interactions at an atomic level.
-3.  **Financial Modeling:** Optimizing complex portfolios in milliseconds.
-
-The race is on between major tech giants to achieve *Quantum Supremacy*.
-    `,
-    media: [
-      { type: 'video', src: 'https://cdn.coverr.co/videos/coverr-futuristic-city-loop-4329/1080p.mp4', caption: 'Visualizing the quantum realm.' },
-      { type: 'image', src: 'https://images.pexels.com/photos/256297/pexels-photo-256297.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'The cryogenic core of a quantum processor.' }
-    ],
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    category: 'Tech',
-    date: 'Oct 24, 2023',
-    author: 'Elena Fisher',
-    featured: true,
-    readTime: 5,
-    sources: ['https://www.nature.com/articles/s41586-019-1666-5', 'https://www.ibm.com/quantum'],
-    views: 1240
-  },
-  {
-    id: '2',
-    title: "Sustainable Minimalism in Corporate Architecture",
-    excerpt: "Why top Fortune 500 companies are ditching skyscrapers for eco-friendly, horizontal campuses embedded in nature.",
-    content: `
-## Green over Grey
-
-The concrete jungle is evolving. The new status symbol isn't the height of your tower, but the depth of your carbon footprint reduction.
-
-Companies are moving towards **Biophilic Design**—the concept of increasing occupant connectivity to the natural environment through the use of direct nature, indirect nature, and space and place conditions.
-
-### Key Benefits
-
-*   **Employee Wellbeing:** Reduced stress and increased creativity.
-*   **Energy Efficiency:** Passive cooling and natural lighting usage.
-*   **Brand Image:** Demonstrating commitment to sustainability.
-
-This shift represents a fundamental rethinking of the "office" as not just a place of production, but a place of *habitation*.
-    `,
-    media: [
-      { type: 'image', src: 'https://images.pexels.com/photos/269077/pexels-photo-269077.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'The new Eco-HQ in Oslo.' },
-      { type: 'image', src: 'https://images.pexels.com/photos/159213/hall-congress-architecture-building-159213.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'Interior integration of plant life.' }
-    ],
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    category: 'Design',
-    date: 'Oct 22, 2023',
-    author: 'Marcus Chen',
-    readTime: 3,
-    sources: ['https://www.archdaily.com/tag/biophilic-design', 'https://hbr.org/2023/05/the-impact-of-green-buildings'],
-    views: 856
-  },
-  {
-    id: '3',
-    title: "Global Markets React to Energy Policy Shifts",
-    excerpt: "An in-depth analysis of how new renewable energy regulations in the EU are affecting Asian manufacturing stocks.",
-    content: `
-## The Ripple Effect
-
-When Brussels sneezes, Tokyo catches a cold. The recent legislation passed by the European Union regarding carbon border taxes is sending shockwaves through global supply chains.
-
-Manufacturers are now faced with a choice:
-1.  Decarbonize rapidy.
-2.  Face steep tariffs on exports to the EU.
-
-### Market Analysis
-
-The tech sector remains resilient, but heavy industry—steel, aluminum, and cement—is seeing significant volatility. Investors are hedging bets by moving capital into green hydrogen startups and battery technology.
-
-*Forecasts suggest a 15% shift in capital allocation over the next fiscal quarter.*
-    `,
-    media: [
-      { type: 'image', src: 'https://images.pexels.com/photos/187041/pexels-photo-187041.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'Stock exchange data visualization.' },
-    ],
-    category: 'Business',
-    date: 'Oct 20, 2023',
-    author: 'Sarah Jenkins',
-    readTime: 7,
-    sources: ['https://www.bloomberg.com', 'https://www.ft.com'],
-    views: 632
-  },
-    {
-    id: '4',
-    title: "Mars Colonization: The First Decade",
-    excerpt: "A retrospective look from the future. What did the first ten years of the red planet settlement actually look like?",
-    content: `
-## Red Dust and Iron Will
-
-The first boots on Mars didn't mark the end of the journey, but the beginning of the struggle. 
-
-Survival wasn't guaranteed. The psychological toll of isolation, combined with the harsh radiation environment, tested the limits of human endurance. Yet, the colony of *Ares Prime* stands today.
-
-### Technological Breakthroughs
-
-The need for water recycling efficiency drove innovation that is now solving drought crises on Earth. The closed-loop life support systems became the blueprint for sustainable living.
-    `,
-    media: [
-      { type: 'image', src: 'https://images.pexels.com/photos/87009/earth-soil-creep-moon-87009.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'Concept art of Ares Prime.' },
-    ],
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    category: 'Science',
-    date: 'Oct 18, 2023',
-    author: 'Dr. Alan Grant',
-    readTime: 12,
-    views: 2105
-  }
-];
-
-const DEFAULT_LOGO_URL = "https://images.unsplash.com/photo-1614680376593-902f74cf0d41?q=80&w=100&auto=format&fit=crop";
+const DEFAULT_LOGO_URL = "";
 
 const DEFAULT_SETTINGS: AppSettings = {
-    siteName: "Lumina",
-    navCategories: ["Tech", "Design", "Business", "Science", "Culture"],
-    contactEmail: "info@agtisa.com",
-    footerDescription: "We bridge the gap between complex information and actionable knowledge. Our mission is to curate, analyze, and present the stories that shape our future.",
+    siteName: "Mi Blog",
+    navCategories: [],
+    contactEmail: "",
+    footerDescription: "",
     footerLinks: [],
     logoUrl: DEFAULT_LOGO_URL,
     homeLayout: 'hero_masonry'
 };
 
-const STORAGE_KEY_ARTICLES = 'lumina_articles_v2'; // Increment version to force refresh if needed
-const STORAGE_KEY_SETTINGS = 'lumina_settings_v2';
+const STORAGE_KEY_ARTICLES = 'blog_articles_v3'; // Increment version to force refresh if needed
+const STORAGE_KEY_SETTINGS = 'blog_settings_v3';
 
 // --- ARTICLES LOGIC ---
 
