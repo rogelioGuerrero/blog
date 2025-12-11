@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Settings, Sparkles, CheckCircle, AlertCircle, Clock, ChevronRight, Home } from 'lucide-react';
 import { GeneratorInput } from './GeneratorInput';
 import { GeneratorTextReview } from './GeneratorTextReview';
 import { GeneratorMediaReview } from './GeneratorMediaReview';
+import { GeneratorComplete } from './GeneratorComplete';
 import { GeneratorSettings } from './GeneratorSettings';
+import { SocialModal } from './SocialModal';
+import { HistorySidebar } from './HistorySidebar';
 import {
   GeneratorStep,
   GeneratedArticle,
@@ -14,11 +17,13 @@ import {
   GeneratorAdvancedSettings,
   UploadedFile,
   getRegionPreferredDomains,
-  GeneratorMediaItem
+  GeneratorMediaItem,
+  DEFAULT_ADVANCED_SETTINGS
 } from '../../services/generator';
 import {
   generateNewsContent,
   generateNewsImages,
+  generateNewsAudio,
   setGeminiApiKey,
   hasGeminiApiKey
 } from '../../services/generator/geminiService';
@@ -37,6 +42,8 @@ interface GeneratorPanelProps {
 }
 
 const STORAGE_KEY = 'blog_generator_config';
+const HISTORY_KEY = 'blog_generator_history';
+const MAX_HISTORY = 20;
 
 const loadConfig = (): GeneratorConfig => {
   try {
@@ -57,6 +64,22 @@ const loadConfig = (): GeneratorConfig => {
 
 const saveConfig = (config: GeneratorConfig) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+};
+
+const loadHistory = (): GeneratedArticle[] => {
+  try {
+    const stored = localStorage.getItem(HISTORY_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn('Failed to load history', e);
+  }
+  return [];
+};
+
+const saveHistory = (history: GeneratedArticle[]) => {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
 };
 
 // Convert GeneratedArticle to Blog Article format
@@ -95,10 +118,18 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
   const [step, setStep] = useState<GeneratorStep>(GeneratorStep.INPUT);
   const [article, setArticle] = useState<GeneratedArticle | null>(null);
   const [config, setConfig] = useState<GeneratorConfig>(loadConfig);
-  const [showSettings, setShowSettings] = useState(false);
+  const [advancedSettings, setAdvancedSettings] = useState<GeneratorAdvancedSettings>(DEFAULT_ADVANCED_SETTINGS);
+  const [history, setHistory] = useState<GeneratedArticle[]>(loadHistory);
   
+  // UI State
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showSocial, setShowSocial] = useState(false);
+  
+  // Loading States
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isSearchingPexels, setIsSearchingPexels] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -134,6 +165,32 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     setConfig(newConfig);
     saveConfig(newConfig);
     setShowSettings(false);
+  };
+
+  // History functions
+  const addToHistory = (art: GeneratedArticle) => {
+    const newHistory = [art, ...history.filter(h => h.id !== art.id)].slice(0, MAX_HISTORY);
+    setHistory(newHistory);
+    saveHistory(newHistory);
+  };
+
+  const handleLoadFromHistory = (art: GeneratedArticle) => {
+    setArticle(art);
+    setStep(GeneratorStep.COMPLETE);
+    setShowHistory(false);
+  };
+
+  const handleDeleteFromHistory = (id: string) => {
+    const newHistory = history.filter(h => h.id !== id);
+    setHistory(newHistory);
+    saveHistory(newHistory);
+  };
+
+  const handleClearHistory = () => {
+    if (confirm('¿Eliminar todo el historial?')) {
+      setHistory([]);
+      saveHistory([]);
+    }
   };
 
   const handleGenerate = async (
@@ -173,6 +230,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
       };
       
       setArticle(partialArticle);
+      setAdvancedSettings(settings);
       setStep(GeneratorStep.TEXT_REVIEW);
     } catch (err: any) {
       console.error(err);
@@ -246,12 +304,22 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     }
   };
 
-  const handleFinalConfirm = async (finalArticle: GeneratedArticle) => {
+  // Move to Complete step (preview before publish)
+  const handleMediaConfirm = (finalArticle: GeneratedArticle) => {
+    setArticle(finalArticle);
+    addToHistory(finalArticle);
+    setStep(GeneratorStep.COMPLETE);
+  };
+
+  // Final publish to blog
+  const handlePublish = async () => {
+    if (!article) return;
+    
     setIsSaving(true);
     setError(null);
     
     try {
-      const blogArticle = convertToBlogArticle(finalArticle);
+      const blogArticle = convertToBlogArticle(article);
       const saved = await saveArticleToApi(blogArticle as Article);
       setSuccess(true);
       onArticleSaved(saved);
@@ -268,100 +336,236 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     }
   };
 
+  // Generate audio for article
+  const handleGenerateAudio = async () => {
+    if (!article) return;
+    
+    setIsGeneratingAudio(true);
+    try {
+      const audioUrl = await generateNewsAudio(article.content, article.language, advancedSettings);
+      setArticle(prev => prev ? { ...prev, audioUrl } : null);
+      
+      // Update in history too
+      const updatedArticle = { ...article, audioUrl };
+      addToHistory(updatedArticle);
+    } catch (err: any) {
+      console.error('Error generating audio:', err);
+      setError('Error generando audio. Intenta de nuevo.');
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  // Generate social post content
+  const handleGenerateSocialPost = async (platform: 'x' | 'linkedin' | 'facebook'): Promise<string> => {
+    if (!article) return '';
+    
+    // Simple fallback - in production you'd call Gemini to generate platform-specific content
+    const title = article.title;
+    const keywords = article.keywords.slice(0, 3).map(k => `#${k.replace(/\s+/g, '')}`).join(' ');
+    
+    switch (platform) {
+      case 'x':
+        return `📰 ${title}\n\n${article.metaDescription.substring(0, 180)}...\n\n${keywords}`;
+      case 'linkedin':
+        return `🔔 ${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 500)}...\n\n${keywords}\n\n#Noticias #Actualidad`;
+      case 'facebook':
+        return `${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 800)}...\n\n${keywords}`;
+      default:
+        return title;
+    }
+  };
+
+  // Reset to start
+  const handleReset = () => {
+    setStep(GeneratorStep.INPUT);
+    setArticle(null);
+    setError(null);
+    setSuccess(false);
+  };
+
   if (!isOpen) return null;
+
+  const stepLabels: Record<GeneratorStep, string> = {
+    [GeneratorStep.INPUT]: 'Tema',
+    [GeneratorStep.TEXT_SEARCH]: 'Buscando...',
+    [GeneratorStep.TEXT_REVIEW]: 'Texto',
+    [GeneratorStep.MEDIA_REVIEW]: 'Media',
+    [GeneratorStep.COMPLETE]: 'Vista Previa'
+  };
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <Sparkles size={20} className="text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Generador de Artículos</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {step === GeneratorStep.INPUT && 'Paso 1: Define el tema'}
-                  {step === GeneratorStep.TEXT_REVIEW && 'Paso 2: Revisa el texto'}
-                  {step === GeneratorStep.MEDIA_REVIEW && 'Paso 3: Selecciona medios'}
-                </p>
+      {/* Full Screen Panel */}
+      <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 z-50 flex flex-col">
+        {/* Header */}
+        <header className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            {/* Left: Logo & Title */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onClose}
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+              >
+                <Home size={18} />
+                <span className="text-sm font-medium hidden sm:inline">Volver al Blog</span>
+              </button>
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <Sparkles size={16} className="text-white" />
+                </div>
+                <span className="font-bold text-slate-900 dark:text-white hidden sm:inline">Generador IA</span>
               </div>
             </div>
+
+            {/* Center: Step Indicator */}
+            <div className="hidden md:flex items-center gap-2">
+              {[GeneratorStep.INPUT, GeneratorStep.TEXT_REVIEW, GeneratorStep.MEDIA_REVIEW, GeneratorStep.COMPLETE].map((s, idx) => (
+                <React.Fragment key={s}>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    step === s 
+                      ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300' 
+                      : step > s 
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                  }`}>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      step === s 
+                        ? 'bg-indigo-600 text-white' 
+                        : step > s 
+                          ? 'bg-green-600 text-white'
+                          : 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300'
+                    }`}>
+                      {step > s ? '✓' : idx + 1}
+                    </span>
+                    {stepLabels[s]}
+                  </div>
+                  {idx < 3 && <ChevronRight size={14} className="text-slate-300 dark:text-slate-600" />}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* Right: Actions */}
             <div className="flex items-center gap-2">
+              {history.length > 0 && (
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <Clock size={16} />
+                  <span className="hidden sm:inline">Historial</span>
+                  <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded-full text-xs">
+                    {history.length}
+                  </span>
+                </button>
+              )}
               <button
                 onClick={() => setShowSettings(true)}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 title="Configuración"
               >
-                <Settings size={20} className="text-slate-400" />
+                <Settings size={18} className="text-slate-400" />
               </button>
               <button
                 onClick={onClose}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <X size={20} className="text-slate-400" />
+                <X size={18} className="text-slate-400" />
               </button>
             </div>
           </div>
+        </header>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className={`mx-auto py-6 px-4 ${step === GeneratorStep.COMPLETE ? 'max-w-6xl' : 'max-w-2xl'}`}>
             {/* Error Message */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="mb-6 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl flex items-center gap-3 text-red-700 dark:text-red-400">
+                <AlertCircle size={20} />
+                <div className="flex-1">{error}</div>
+                <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded">
+                  <X size={16} />
+                </button>
               </div>
             )}
 
             {/* Success Message */}
             {success && (
-              <div className="mb-4 p-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg flex items-center gap-3 text-green-700 dark:text-green-400">
-                <CheckCircle size={24} />
-                <div>
-                  <p className="font-bold">¡Artículo publicado!</p>
-                  <p className="text-sm opacity-80">El artículo ya está disponible en tu blog.</p>
+              <div className="mb-6 p-6 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl flex items-center gap-4 text-green-700 dark:text-green-400">
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center">
+                  <CheckCircle size={24} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-lg">¡Artículo publicado exitosamente!</p>
+                  <p className="text-sm opacity-80">El artículo ya está disponible en tu blog. Cerrando...</p>
                 </div>
               </div>
             )}
 
-            {/* Steps */}
+            {/* Steps Content */}
             {!success && (
               <>
                 {step === GeneratorStep.INPUT && (
-                  <GeneratorInput
-                    onGenerate={handleGenerate}
-                    isGenerating={isGenerating}
-                    statusMessage={statusMessage}
-                  />
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                    <div className="text-center mb-6">
+                      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                        Redacción Periodística con IA
+                      </h1>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        Genera artículos profundos, multimedia y multilingües en segundos.
+                      </p>
+                    </div>
+                    <GeneratorInput
+                      onGenerate={handleGenerate}
+                      isGenerating={isGenerating}
+                      statusMessage={statusMessage}
+                    />
+                  </div>
                 )}
 
                 {step === GeneratorStep.TEXT_REVIEW && article && (
-                  <GeneratorTextReview
-                    article={article}
-                    onBack={() => setStep(GeneratorStep.INPUT)}
-                    onConfirm={handleConfirmText}
-                    isLoading={isGeneratingImages}
-                  />
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                    <GeneratorTextReview
+                      article={article}
+                      onBack={handleReset}
+                      onConfirm={handleConfirmText}
+                      isLoading={isGeneratingImages}
+                    />
+                  </div>
                 )}
 
                 {step === GeneratorStep.MEDIA_REVIEW && article && (
-                  <GeneratorMediaReview
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                    <GeneratorMediaReview
+                      article={article}
+                      onBack={() => setStep(GeneratorStep.TEXT_REVIEW)}
+                      onConfirm={handleMediaConfirm}
+                      onRegenerateImages={handleRegenerateImages}
+                      onSearchPexels={handleSearchPexels}
+                      isGeneratingImages={isGeneratingImages}
+                      isSearchingPexels={isSearchingPexels}
+                    />
+                  </div>
+                )}
+
+                {step === GeneratorStep.COMPLETE && article && (
+                  <GeneratorComplete
                     article={article}
-                    onBack={() => setStep(GeneratorStep.TEXT_REVIEW)}
-                    onConfirm={handleFinalConfirm}
-                    onRegenerateImages={handleRegenerateImages}
-                    onSearchPexels={handleSearchPexels}
-                    isGeneratingImages={isGeneratingImages}
-                    isSearchingPexels={isSearchingPexels}
+                    advancedSettings={advancedSettings}
+                    onBack={() => setStep(GeneratorStep.MEDIA_REVIEW)}
+                    onPublish={handlePublish}
+                    onOpenSocial={() => setShowSocial(true)}
+                    onGenerateAudio={handleGenerateAudio}
+                    isPublishing={isSaving}
+                    isGeneratingAudio={isGeneratingAudio}
                   />
                 )}
               </>
             )}
           </div>
-        </div>
+        </main>
       </div>
 
       {/* Settings Modal */}
@@ -371,6 +575,26 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         onClose={() => setShowSettings(false)}
         onSave={handleSaveConfig}
       />
+
+      {/* History Sidebar */}
+      <HistorySidebar
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        history={history}
+        onLoadArticle={handleLoadFromHistory}
+        onDeleteArticle={handleDeleteFromHistory}
+        onClearHistory={handleClearHistory}
+      />
+
+      {/* Social Modal */}
+      {article && (
+        <SocialModal
+          isOpen={showSocial}
+          onClose={() => setShowSocial(false)}
+          article={article}
+          onGeneratePost={handleGenerateSocialPost}
+        />
+      )}
     </>
   );
 };
