@@ -7,6 +7,7 @@ import AdminEditor from './components/AdminEditor';
 import Footer from './components/Footer';
 import { GridSkeleton, ArticleSkeleton } from './components/Skeletons';
 import PinModal from './components/PinModal';
+import { SecretMenu } from './components/SecretMenu';
 import { GeneratorPanel } from './components/generator';
 import { getArticlesFromApi, getSettingsFromApi, incrementArticleViewApi } from './services/api';
 import { DEFAULT_APP_SETTINGS } from './services/data';
@@ -41,8 +42,9 @@ function App() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Generator & PIN Modal State
+  // Secret Access State
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showSecretMenu, setShowSecretMenu] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
 
   const allArticles = articles;
@@ -272,7 +274,18 @@ function App() {
   };
 
   const handlePinSuccess = () => {
+      setShowPinModal(false);
+      setShowSecretMenu(true);
+  };
+
+  const handleSelectGenerator = () => {
+      setShowSecretMenu(false);
       setShowGenerator(true);
+  };
+
+  const handleSelectAdmin = () => {
+      setShowSecretMenu(false);
+      setView('ADMIN');
   };
 
   const handleArticleSaved = (savedArticle: Article) => {
@@ -745,6 +758,14 @@ function App() {
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
         onSuccess={handlePinSuccess}
+      />
+
+      {/* Secret Menu - Choose Generator or Admin */}
+      <SecretMenu
+        isOpen={showSecretMenu}
+        onClose={() => setShowSecretMenu(false)}
+        onSelectGenerator={handleSelectGenerator}
+        onSelectAdmin={handleSelectAdmin}
       />
 
       {/* AI Article Generator Panel */}
