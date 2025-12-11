@@ -6,7 +6,8 @@ import {
   ChevronDown, 
   ChevronUp,
   X,
-  Loader2
+  Loader2,
+  Settings2
 } from 'lucide-react';
 import {
   GeneratorInputMode,
@@ -17,7 +18,10 @@ import {
   LENGTHS,
   LANGUAGES,
   PLACEHOLDERS,
-  DEFAULT_ADVANCED_SETTINGS
+  DEFAULT_ADVANCED_SETTINGS,
+  ArticleTone,
+  SourceRegion,
+  TimeFrame
 } from '../../services/generator';
 
 interface GeneratorInputProps {
@@ -32,6 +36,30 @@ interface GeneratorInputProps {
   isGenerating: boolean;
   statusMessage: string;
 }
+
+const TONE_OPTIONS: { value: ArticleTone; label: string }[] = [
+  { value: 'objective', label: 'Objetivo / Neutral' },
+  { value: 'editorial', label: 'Editorial / Opinión' },
+  { value: 'corporate', label: 'Corporativo' },
+  { value: 'narrative', label: 'Narrativo' },
+  { value: 'explanatory', label: 'Explicativo / Didáctico' },
+  { value: 'sensational', label: 'Sensacionalista' },
+];
+
+const REGION_OPTIONS: { value: SourceRegion; label: string }[] = [
+  { value: 'world', label: 'Global' },
+  { value: 'us', label: 'Estados Unidos' },
+  { value: 'eu', label: 'Europa' },
+  { value: 'latam', label: 'Latinoamérica' },
+  { value: 'asia', label: 'Asia' },
+];
+
+const TIME_OPTIONS: { value: TimeFrame; label: string }[] = [
+  { value: 'any', label: 'Cualquier fecha' },
+  { value: '24h', label: 'Últimas 24 horas' },
+  { value: 'week', label: 'Última semana' },
+  { value: 'month', label: 'Último mes' },
+];
 
 export const GeneratorInput: React.FC<GeneratorInputProps> = ({
   onGenerate,
@@ -169,79 +197,131 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
         </div>
       )}
 
-      {/* Language & Length */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Idioma</label>
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value as GeneratorLanguage)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-          >
-            {LANGUAGES.map(lang => (
-              <option key={lang.code} value={lang.code}>{lang.label}</option>
-            ))}
-          </select>
+      {/* Language - Button Group */}
+      <div className="space-y-2">
+        <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Idioma</label>
+        <div className="flex gap-2">
+          {LANGUAGES.map(lang => (
+            <button
+              key={lang.code}
+              type="button"
+              onClick={() => setSelectedLanguage(lang.code)}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all border ${
+                selectedLanguage === lang.code
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500'
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
         </div>
-        <div className="space-y-1.5">
-          <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Extensión</label>
-          <select
-            value={selectedLength}
-            onChange={(e) => setSelectedLength(e.target.value as ArticleLength)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-          >
-            {LENGTHS.map(len => (
-              <option key={len.code} value={len.code}>{len.label} ({len.desc} palabras)</option>
-            ))}
-          </select>
+      </div>
+
+      {/* Length - Button Group */}
+      <div className="space-y-2">
+        <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Longitud</label>
+        <div className="flex gap-2">
+          {LENGTHS.map(len => (
+            <button
+              key={len.code}
+              type="button"
+              onClick={() => setSelectedLength(len.code)}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all border ${
+                selectedLength === len.code
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500'
+              }`}
+            >
+              {len.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Advanced Toggle */}
       <button
         onClick={() => setShowAdvanced(!showAdvanced)}
-        className="flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+        className="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors font-medium border border-indigo-200 dark:border-indigo-500/30 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
       >
-        {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        Opciones avanzadas
+        <Settings2 size={16} />
+        Configuración Avanzada (Estilo, Fuentes, Tono)
+        {showAdvanced ? <ChevronUp size={16} className="ml-auto" /> : <ChevronDown size={16} className="ml-auto" />}
       </button>
 
       {/* Advanced Settings */}
       {showAdvanced && (
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-4 border border-slate-200 dark:border-slate-700">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-4 border border-slate-200 dark:border-slate-700 animate-fade-in">
+          {/* Row 1: Tone, Region, Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Tono</label>
+              <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Tono Editorial</label>
               <select
                 value={advancedSettings.tone}
-                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, tone: e.target.value as any }))}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm"
+                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, tone: e.target.value as ArticleTone }))}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option value="objective">Objetivo</option>
-                <option value="editorial">Editorial</option>
-                <option value="corporate">Corporativo</option>
-                <option value="narrative">Narrativo</option>
-                <option value="explanatory">Explicativo</option>
+                {TONE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Audiencia</label>
+              <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Región de Fuentes</label>
               <select
-                value={advancedSettings.audience}
-                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, audience: e.target.value as any }))}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm"
+                value={advancedSettings.sourceRegion}
+                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, sourceRegion: e.target.value as SourceRegion }))}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option value="general">General</option>
-                <option value="expert">Expertos</option>
-                <option value="investor">Inversores</option>
-                <option value="executive">Ejecutivos</option>
-                <option value="academic">Académico</option>
+                {REGION_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Temporalidad</label>
+              <select
+                value={advancedSettings.timeFrame}
+                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, timeFrame: e.target.value as TimeFrame }))}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                {TIME_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          {/* Row 2: Audience */}
+          <div className="space-y-1.5">
+            <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Audiencia Objetivo</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'general', label: 'General' },
+                { value: 'expert', label: 'Expertos' },
+                { value: 'investor', label: 'Inversores' },
+                { value: 'executive', label: 'Ejecutivos' },
+                { value: 'academic', label: 'Académico' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setAdvancedSettings(prev => ({ ...prev, audience: opt.value as any }))}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                    advancedSettings.audience === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3: Checkboxes */}
+          <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={advancedSettings.includeQuotes}
@@ -250,7 +330,7 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
               />
               Incluir citas
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={advancedSettings.includeStats}
@@ -259,7 +339,7 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
               />
               Incluir estadísticas
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={advancedSettings.verifiedSourcesOnly}
@@ -267,6 +347,15 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
               Solo fuentes verificadas
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={advancedSettings.includeCounterArguments}
+                onChange={(e) => setAdvancedSettings(prev => ({ ...prev, includeCounterArguments: e.target.checked }))}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Incluir contraargumentos
             </label>
           </div>
         </div>
