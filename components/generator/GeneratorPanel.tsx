@@ -111,7 +111,6 @@ const convertToBlogArticle = (generated: GeneratedArticle): Article => {
     featured: false,
     readTime: Math.ceil(generated.content.split(/\s+/).length / 200),
     sources: Array.from(new Set(sourceList)),
-    sourceCertificate: generated.sourceCertificate ?? null,
     views: 0
   };
 };
@@ -227,8 +226,6 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         title: textData.title,
         content: textData.content,
         sources: textData.sources,
-        rawSources: textData.rawSourceChunks,
-        sourceCertificate: textData.sourceCertificate,
         media: [],
         language,
         keywords: textData.keywords,

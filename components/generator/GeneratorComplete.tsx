@@ -20,7 +20,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { GeneratedArticle, GeneratorMediaItem, GeneratorAdvancedSettings } from '../../services/generator';
-import { SourceCertificateCard } from '../common/SourceCertificateCard';
 
 interface GeneratorCompleteProps {
   article: GeneratedArticle;
@@ -306,33 +305,29 @@ export const GeneratorComplete: React.FC<GeneratorCompleteProps> = ({
           </div>
 
           {/* Sources */}
-          {article.sourceCertificate ? (
-            <SourceCertificateCard certificate={article.sourceCertificate} variant="panel" />
-          ) : (
-            article.sources.length > 0 && (
-              <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Globe size={14} className="text-slate-400" />
-                  <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
-                    Fuentes ({article.sources.length})
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {article.sources.map((source, idx) => (
-                    <a
-                      key={`${source.uri}-${idx}`}
-                      href={source.uri}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                    >
-                      {source.domain || source.title}
-                      <ExternalLink size={10} />
-                    </a>
-                  ))}
-                </div>
+          {article.sources.length > 0 && (
+            <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Globe size={14} className="text-slate-400" />
+                <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
+                  Fuentes ({article.sources.length})
+                </span>
               </div>
-            )
+              <div className="flex flex-wrap gap-2">
+                {article.sources.map((source, idx) => (
+                  <a
+                    key={`${source.uri}-${idx}`}
+                    href={source.uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                  >
+                    {source.domain || source.title}
+                    <ExternalLink size={10} />
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 

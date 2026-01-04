@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Article, AppSettings } from '../types';
 import MediaCarousel from './MediaCarousel';
-import { SourceCertificateCard } from './common/SourceCertificateCard';
 import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check } from 'lucide-react';
 
 interface Props {
@@ -356,12 +355,6 @@ const ArticleViewVideoFirst: React.FC<Props> = ({ article, onBack, onNavigate, o
                 );
               })}
             </ul>
-          </div>
-        )}
-
-        {article.sourceCertificate && (
-          <div className="mt-10">
-            <SourceCertificateCard certificate={article.sourceCertificate} variant="article" />
           </div>
         )}
 

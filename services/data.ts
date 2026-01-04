@@ -110,10 +110,9 @@ export const normalizeArticle = (data: any): Article => {
       caption: sanitizeCaption(m.caption)
   }));
 
-  const { list: normalizedSources, certificate } = extractSourcesInfo(data.sources);
-
   return {
     id: data.id || Math.random().toString(36).substr(2, 9),
+
     title: data.title || 'Untitled Article',
     excerpt: data.excerpt || '',
     content: data.content || '',
@@ -124,8 +123,8 @@ export const normalizeArticle = (data: any): Article => {
     author: authorName, 
     featured: !!data.featured,
     readTime: data.readTime || 5,
-    sources: normalizedSources,
-    sourceCertificate: data.sourceCertificate ?? certificate ?? null,
+    sources: Array.isArray(data.sources) ? data.sources : [],
+
     views: data.views || 0
   };
 };

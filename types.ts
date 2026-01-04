@@ -3,6 +3,7 @@ export interface Article {
   title: string;
   excerpt: string;
   content: string; // Markdown
+
   media: { type: 'image' | 'video', src: string; caption?: string }[];
   audioUrl?: string;
   // Changed from strict union type to string to support dynamic JSON ingestion
@@ -12,29 +13,7 @@ export interface Article {
   featured?: boolean;
   readTime: number;
   sources?: string[];
-  sourceCertificate?: SourceCertificate | null;
   views?: number; // Internal analytics
-}
-
-export interface SourceCertificateEntry {
-  id: string;
-  name: string;
-  domain: string;
-  url: string;
-  categories: string[];
-  mentions: number;
-  snippet?: string | null;
-}
-
-export interface SourceCertificate {
-  generatedAt: string;
-  totalMentions: number;
-  sources: SourceCertificateEntry[];
-}
-
-export interface ArticleSourcesPayload {
-  list: string[];
-  certificate?: SourceCertificate | null;
 }
 
 export interface FooterLink {

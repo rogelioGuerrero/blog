@@ -6,11 +6,8 @@ import {
   ArticleLength, 
   GeneratorAdvancedSettings, 
   ArticleTone, 
-  GeneratedArticle, 
-  GeneratorMediaItem, 
-  RawSourceChunk 
+  GeneratorMediaItem 
 } from "./types";
-import type { SourceCertificate } from '../../types';
 
 let geminiApiKey = "";
 let ai: GoogleGenAI | null = null;
@@ -100,43 +97,6 @@ const categorizeDomain = (domain: string | null): string[] => {
   return Array.from(categories);
 };
 
-const buildSourceCertificate = (
-  sources: GeneratorSource[],
-  rawChunks: RawSourceChunk[]
-): SourceCertificate | null => {
-  if (!sources.length) return null;
-
-  const mentionMap = new Map<string, { count: number; snippet?: string | null }>();
-
-  rawChunks.forEach(chunk => {
-    const domain = getDomainFromUrl(chunk.uri);
-    if (!domain) return;
-    const current = mentionMap.get(domain) || { count: 0, snippet: chunk.snippet };
-    mentionMap.set(domain, {
-      count: current.count + 1,
-      snippet: current.snippet || chunk.snippet,
-    });
-  });
-
-  return {
-    generatedAt: new Date().toISOString(),
-    totalMentions: rawChunks.length || sources.length,
-    sources: sources.map((source, idx) => {
-      const domain = source.domain || getDomainFromUrl(source.uri) || `dominio-${idx + 1}`;
-      const stats = mentionMap.get(domain);
-      return {
-        id: `${domain}-${idx}`,
-        name: source.title,
-        domain,
-        url: source.uri,
-        categories: source.categories || [],
-        mentions: stats?.count || 1,
-        snippet: stats?.snippet || null,
-      };
-    }),
-  };
-};
-
 export const generateNewsContent = async (
   input: string,
   mode: "topic" | "document",
@@ -151,8 +111,6 @@ export const generateNewsContent = async (
   imagePrompt: string;
   keywords: string[];
   metaDescription: string;
-  rawSourceChunks: RawSourceChunk[];
-  sourceCertificate: SourceCertificate | null;
 }> => {
   try {
     const client = requireAiClient();
@@ -262,14 +220,7 @@ export const generateNewsContent = async (
 
     const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    const rawSourceChunks: RawSourceChunk[] = chunks.map((c: any) => ({
-      title: c.web?.title || null,
-      uri: c.web?.uri || null,
-      snippet: c.web?.snippet || null,
-      provider: c.web?.provider || null
-    }));
-
-    const rawSources = rawSourceChunks
+    const rawSources = chunks
       .map((chunk) => {
         if (chunk.uri && chunk.title) {
           return { title: chunk.title, uri: chunk.uri };
@@ -318,17 +269,13 @@ export const generateNewsContent = async (
       uniqueSources.push({ title: file.name, uri: "#" });
     }
 
-    const sourceCertificate = buildSourceCertificate(uniqueSources, rawSourceChunks);
-
     return {
       title,
       content,
       imagePrompt,
       sources: uniqueSources,
       keywords,
-      metaDescription,
-      rawSourceChunks,
-      sourceCertificate
+      metaDescription
     };
   } catch (error) {
     console.error("Error generating text:", error);

@@ -1,19 +1,10 @@
 // Types for the AI Article Generator module
 
-import type { SourceCertificate } from '../../types';
-
 export interface GeneratorSource {
   title: string;
   uri: string;
   domain?: string;
   categories?: string[];
-}
-
-export interface RawSourceChunk {
-  title?: string | null;
-  uri?: string | null;
-  snippet?: string | null;
-  provider?: string | null;
 }
 
 export interface GeneratorMediaItem {
@@ -29,8 +20,6 @@ export interface GeneratedArticle {
   title: string;
   content: string;
   sources: GeneratorSource[];
-  rawSources?: RawSourceChunk[];
-  sourceCertificate?: SourceCertificate | null;
   media: GeneratorMediaItem[];
   audioUrl?: string;
   language: GeneratorLanguage;

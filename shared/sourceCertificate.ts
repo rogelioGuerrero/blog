@@ -1,5 +1,3 @@
-import type { ArticleSourcesPayload, SourceCertificate } from '../types';
-
 const ensureArray = (value: any): string[] => {
   if (Array.isArray(value)) {
     return value.filter(Boolean).map(String);
@@ -7,53 +5,37 @@ const ensureArray = (value: any): string[] => {
   return [];
 };
 
-const coerceToPayload = (raw: any): ArticleSourcesPayload => {
+const coerceToList = (raw: any): string[] => {
   if (!raw) {
-    return { list: [], certificate: null };
+    return [];
   }
 
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      return coerceToPayload(parsed);
+      return coerceToList(parsed);
     } catch {
-      return { list: [], certificate: null };
+      return [];
     }
   }
 
   if (Array.isArray(raw)) {
-    return { list: ensureArray(raw), certificate: null };
+    return ensureArray(raw);
   }
 
   if (typeof raw === 'object') {
-    const list = ensureArray((raw as ArticleSourcesPayload).list ?? (raw as any).sources ?? []);
-    const certificate = (raw as ArticleSourcesPayload).certificate ?? null;
-    return {
-      list,
-      certificate,
-    };
+    return ensureArray((raw as any).list ?? (raw as any).sources ?? []);
   }
 
-  return { list: [], certificate: null };
+  return [];
 };
 
-export const ensureSourcePayload = (raw: any): ArticleSourcesPayload => coerceToPayload(raw);
-
-export const extractSourcesInfo = (raw: any): { list: string[]; certificate: SourceCertificate | null } => {
-  const payload = ensureSourcePayload(raw);
+export const extractSourcesInfo = (raw: any): { list: string[] } => {
   return {
-    list: payload.list,
-    certificate: payload.certificate ?? null,
+    list: coerceToList(raw),
   };
 };
 
-export const buildSourcePayload = (
-  list: string[] = [],
-  certificate?: SourceCertificate | null
-): ArticleSourcesPayload => {
-  const uniqueList = Array.from(new Set(ensureArray(list)));
-  return {
-    list: uniqueList,
-    certificate: certificate ?? null,
-  };
+export const buildSourcePayload = (list: string[] = []): string[] => {
+  return Array.from(new Set(ensureArray(list)));
 };

@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Article, AppSettings } from '../types';
 import MediaCarousel from './MediaCarousel';
-import { SourceCertificateCard } from './common/SourceCertificateCard';
-
-import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check, Shield } from 'lucide-react';
+import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check } from 'lucide-react';
 
 interface Props {
   article: Article;
@@ -264,61 +262,52 @@ const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio
             </div>
           </div>
         )}
-        
-        {/* Sources Section - Professional Domain Listing */}
+
         {(article.sources?.length ?? 0) > 0 && (
           <div className="mt-16 pt-8 border-t border-slate-200 dark:border-slate-800">
             <h4 className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-6">
-                <BookOpen size={14} />
-                Sources & References
+              <BookOpen size={14} />
+              Sources & References
             </h4>
             <ul className="flex flex-wrap gap-3">
               {article.sources.map((source, idx) => {
                 const domain = getDomainFromUrl(source);
                 return (
-                    <li key={idx}>
-                       {source.startsWith('http') ? (
-                         <a 
-                            href={source} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
-                         >
-                            {domain}
-                            <ExternalLink size={10} className="opacity-50" />
-                         </a>
-                       ) : (
-                         <span className="inline-block px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 text-slate-500 text-xs">{source}</span>
-                       )}
-                    </li>
+                  <li key={idx}>
+                    {source.startsWith('http') ? (
+                      <a
+                        href={source}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
+                      >
+                        {domain}
+                        <ExternalLink size={10} className="opacity-50" />
+                      </a>
+                    ) : (
+                      <span className="inline-block px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
+                        {source}
+                      </span>
+                    )}
+                  </li>
                 );
               })}
             </ul>
           </div>
         )}
-        {article.sourceCertificate && (
-          <div className="mt-12 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
-              <Shield size={14} />
-              Certificado de Procedencia
-            </div>
-            <SourceCertificateCard certificate={article.sourceCertificate} variant="article" />
-          </div>
-        )}
 
-        {/* Minimal Footer */}
         <div className="mt-24 pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-center">
-            <button 
-                onClick={handleShare}
-                className={`flex items-center gap-2 transition-colors text-xs font-bold uppercase tracking-widest ${
-                    isCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-            >
-                {isCopied ? <Check size={14} /> : <Share2 size={14} />}
-                <span>{isCopied ? 'Link Copied!' : 'Share Story'}</span>
-            </button>
+          <button
+            onClick={handleShare}
+            className={`flex items-center gap-2 transition-colors text-xs font-bold uppercase tracking-widest ${
+              isCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+            }`}
+          >
+            {isCopied ? <Check size={14} /> : <Share2 size={14} />}
+            <span>{isCopied ? 'Link Copied!' : 'Share Story'}</span>
+          </button>
         </div>
-        
+
       </div>
     </div>
   );
