@@ -84,9 +84,15 @@ const saveHistory = (history: GeneratedArticle[]) => {
 
 // Convert GeneratedArticle to Blog Article format
 const convertToBlogArticle = (generated: GeneratedArticle): Article => {
-  const sourceList = generated.sources
+  let sourceList = generated.sources
     .map(s => s.uri)
     .filter(u => u && u !== '#');
+
+  if (sourceList.length === 0 && generated.rawSources?.length) {
+    sourceList = generated.rawSources
+      .map(chunk => chunk?.uri || '')
+      .filter(uri => uri && !uri.includes('google.com/search') && !uri.includes('google.com/url'));
+  }
 
   return {
     id: generated.id || crypto.randomUUID?.() || Date.now().toString(),
@@ -226,6 +232,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         title: textData.title,
         content: textData.content,
         sources: textData.sources,
+        rawSources: textData.rawSourceChunks,
         media: [],
         language,
         keywords: textData.keywords,

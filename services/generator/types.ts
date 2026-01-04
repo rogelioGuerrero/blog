@@ -7,6 +7,13 @@ export interface GeneratorSource {
   categories?: string[];
 }
 
+export interface RawSourceChunk {
+  title?: string | null;
+  uri?: string | null;
+  snippet?: string | null;
+  provider?: string | null;
+}
+
 export interface GeneratorMediaItem {
   type: 'image' | 'video';
   data: string; // Base64 or URL
@@ -20,6 +27,7 @@ export interface GeneratedArticle {
   title: string;
   content: string;
   sources: GeneratorSource[];
+  rawSources?: RawSourceChunk[];
   media: GeneratorMediaItem[];
   audioUrl?: string;
   language: GeneratorLanguage;

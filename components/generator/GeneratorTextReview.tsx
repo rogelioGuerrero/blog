@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, Edit3, Check, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Edit3, Check, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { GeneratedArticle, GeneratorSource } from '../../services/generator';
 
 interface GeneratorTextReviewProps {
@@ -27,6 +27,9 @@ export const GeneratorTextReview: React.FC<GeneratorTextReviewProps> = ({
     };
     onConfirm(updatedArticle);
   };
+
+  const hasVerifiedSources = article.sources.length > 0;
+  const hasRawSources = (article.rawSources?.length ?? 0) > 0;
 
   // Group sources by domain
   const groupedSources = article.sources.reduce<Record<string, GeneratorSource[]>>((acc, src) => {
@@ -98,8 +101,28 @@ export const GeneratorTextReview: React.FC<GeneratorTextReviewProps> = ({
         )}
       </div>
 
+      {/* Source warning */}
+      {!hasVerifiedSources && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-400/30 rounded-xl">
+          <AlertTriangle className="text-amber-600 dark:text-amber-400" size={18} />
+          <div className="text-sm text-amber-900 dark:text-amber-200">
+            <p className="font-semibold">Sin fuentes verificadas del motor</p>
+            {hasRawSources ? (
+              <p className="text-amber-800/90 dark:text-amber-200/90">
+                Gemini no devolvió referencias limpias, pero conservamos los enlaces crudos para depuración.
+                Considera ajustar el prompt o reintentar antes de publicar.
+              </p>
+            ) : (
+              <p className="text-amber-800/90 dark:text-amber-200/90">
+                El modelo no entregó ningún enlace. Reintenta la generación o agrega referencias manualmente para evitar artículos sin respaldo.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Sources */}
-      {article.sources.length > 0 && (
+      {hasVerifiedSources && (
         <div className="space-y-2">
           <label className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
             Fuentes ({article.sources.length})

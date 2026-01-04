@@ -6,7 +6,8 @@ import {
   ArticleLength, 
   GeneratorAdvancedSettings, 
   ArticleTone, 
-  GeneratorMediaItem 
+  GeneratorMediaItem,
+  RawSourceChunk 
 } from "./types";
 
 let geminiApiKey = "";
@@ -108,6 +109,7 @@ export const generateNewsContent = async (
   title: string;
   content: string;
   sources: GeneratorSource[];
+  rawSourceChunks: RawSourceChunk[];
   imagePrompt: string;
   keywords: string[];
   metaDescription: string;
@@ -220,7 +222,17 @@ export const generateNewsContent = async (
 
     const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    const rawSources = chunks
+    const rawSourceChunks: RawSourceChunk[] = chunks.map((chunk: any) => {
+      const source = chunk.web ?? chunk;
+      return {
+        title: source?.title ?? chunk.title ?? null,
+        uri: source?.uri ?? chunk.uri ?? null,
+        snippet: source?.snippet ?? chunk.snippet ?? null,
+        provider: source?.provider ?? chunk.provider ?? null
+      };
+    });
+
+    const rawSources = rawSourceChunks
       .map((chunk) => {
         if (chunk.uri && chunk.title) {
           return { title: chunk.title, uri: chunk.uri };
@@ -235,6 +247,7 @@ export const generateNewsContent = async (
 
     for (const source of rawSources) {
       const uri = source.uri;
+      const isVertexRedirect = uri.includes("vertexaisearch");
       const isGoogleSearch = uri.includes("google.com/search") || uri.includes("google.com/url");
 
       if (isGoogleSearch) {
@@ -243,7 +256,12 @@ export const generateNewsContent = async (
 
       let titleLabel = source.title.trim();
 
-      if (titleLabel.includes("http") || titleLabel.includes("www.") || titleLabel.length > 100) {
+      if (isVertexRedirect) {
+        const candidate = titleLabel;
+        if (!(candidate.includes('.') && !candidate.includes(' '))) {
+          titleLabel = 'Referencia verificada';
+        }
+      } else if (titleLabel.includes("http") || titleLabel.includes("www.") || titleLabel.length > 100) {
         try {
           const hostname = new URL(uri).hostname;
           titleLabel = hostname.replace("www.", "");
@@ -255,7 +273,7 @@ export const generateNewsContent = async (
       if (!seenUris.has(uri) && !seenTitles.has(titleLabel)) {
         seenUris.add(uri);
         seenTitles.add(titleLabel);
-        const domain = getDomainFromUrl(uri);
+        const domain = getDomainFromUrl(uri) || (titleLabel.includes('.') && !titleLabel.includes(' ') ? titleLabel : null);
         uniqueSources.push({
           title: titleLabel,
           uri,
@@ -274,6 +292,7 @@ export const generateNewsContent = async (
       content,
       imagePrompt,
       sources: uniqueSources,
+      rawSourceChunks,
       keywords,
       metaDescription
     };
