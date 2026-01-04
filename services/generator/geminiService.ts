@@ -15,7 +15,12 @@ let ai: GoogleGenAI | null = null;
 
 export const setGeminiApiKey = (key: string) => {
   geminiApiKey = key;
-  ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
+  ai = geminiApiKey
+    ? new GoogleGenAI({
+        apiKey: geminiApiKey,
+        apiVersion: "v1beta1"
+      })
+    : null;
 };
 
 export const hasGeminiApiKey = () => !!geminiApiKey;
@@ -336,8 +341,9 @@ export const generateNewsContent = async (
 };
 
 const IMAGE_MODEL_CANDIDATES = [
-  "imagen-3.0-fast",
-  "imagen-3.0-generate-001"
+  "imagen-3.0",
+  "imagen-3.0-light",
+  "imagen-3.0-pro"
 ];
 
 export const generateNewsImages = async (prompt: string): Promise<string[]> => {
