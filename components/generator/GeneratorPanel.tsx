@@ -83,12 +83,13 @@ const saveHistory = (history: GeneratedArticle[]) => {
 };
 
 // Convert GeneratedArticle to Blog Article format
-const convertToBlogArticle = (generated: GeneratedArticle): Omit<Article, 'id'> => {
+const convertToBlogArticle = (generated: GeneratedArticle): Article => {
   const sourceList = generated.sources
     .map(s => s.uri)
     .filter(u => u && u !== '#');
 
   return {
+    id: generated.id || crypto.randomUUID?.() || Date.now().toString(),
     title: generated.title,
     excerpt: generated.metaDescription || generated.content.substring(0, 200) + '...',
     content: generated.content,
@@ -326,7 +327,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     
     try {
       const blogArticle = convertToBlogArticle(article);
-      const saved = await saveArticleToApi(blogArticle as Article);
+      const saved = await saveArticleToApi(blogArticle);
       setSuccess(true);
       onArticleSaved(saved);
       
