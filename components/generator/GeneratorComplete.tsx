@@ -20,6 +20,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { GeneratedArticle, GeneratorMediaItem, GeneratorAdvancedSettings } from '../../services/generator';
+import { SourceCertificateCard } from '../common/SourceCertificateCard';
 
 interface GeneratorCompleteProps {
   article: GeneratedArticle;
@@ -125,19 +126,6 @@ export const GeneratorComplete: React.FC<GeneratorCompleteProps> = ({
   </footer>
 </article>`;
   };
-
-  // Group sources by domain
-  const groupedSources = article.sources.reduce<Record<string, typeof article.sources>>((acc, src) => {
-    try {
-      const domain = new URL(src.uri).hostname.replace('www.', '');
-      if (!acc[domain]) acc[domain] = [];
-      acc[domain].push(src);
-    } catch {
-      if (!acc['other']) acc['other'] = [];
-      acc['other'].push(src);
-    }
-    return acc;
-  }, {});
 
   const currentMedia = article.media[currentMediaIndex];
 
@@ -318,34 +306,33 @@ export const GeneratorComplete: React.FC<GeneratorCompleteProps> = ({
           </div>
 
           {/* Sources */}
-          {Object.keys(groupedSources).length > 0 && (
-            <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Globe size={14} className="text-slate-400" />
-                <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
-                  Fuentes ({article.sources.length})
-                </span>
+          {article.sourceCertificate ? (
+            <SourceCertificateCard certificate={article.sourceCertificate} variant="panel" />
+          ) : (
+            article.sources.length > 0 && (
+              <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Globe size={14} className="text-slate-400" />
+                  <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
+                    Fuentes ({article.sources.length})
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {article.sources.map((source, idx) => (
+                    <a
+                      key={`${source.uri}-${idx}`}
+                      href={source.uri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      {source.domain || source.title}
+                      <ExternalLink size={10} />
+                    </a>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(groupedSources).map(([domain, sources]) => (
-                  <a
-                    key={domain}
-                    href={sources[0].uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                  >
-                    {domain}
-                    {sources.length > 1 && (
-                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-600 rounded-full text-[10px]">
-                        {sources.length}
-                      </span>
-                    )}
-                    <ExternalLink size={10} />
-                  </a>
-                ))}
-              </div>
-            </div>
+            )
           )}
         </div>
 

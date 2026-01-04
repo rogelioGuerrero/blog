@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, Edit3, Check, ExternalLink, Loader2 } from 'lucide-react';
 import { GeneratedArticle, GeneratorSource } from '../../services/generator';
+import { SourceCertificateCard } from '../common/SourceCertificateCard';
 
 interface GeneratorTextReviewProps {
   article: GeneratedArticle;
@@ -126,6 +127,10 @@ export const GeneratorTextReview: React.FC<GeneratorTextReviewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {article.sourceCertificate && (
+        <SourceCertificateCard certificate={article.sourceCertificate} variant="panel" />
       )}
 
       {/* Keywords */}

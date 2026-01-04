@@ -1,4 +1,3 @@
-
 export interface Article {
   id: string;
   title: string;
@@ -13,7 +12,29 @@ export interface Article {
   featured?: boolean;
   readTime: number;
   sources?: string[];
+  sourceCertificate?: SourceCertificate | null;
   views?: number; // Internal analytics
+}
+
+export interface SourceCertificateEntry {
+  id: string;
+  name: string;
+  domain: string;
+  url: string;
+  categories: string[];
+  mentions: number;
+  snippet?: string | null;
+}
+
+export interface SourceCertificate {
+  generatedAt: string;
+  totalMentions: number;
+  sources: SourceCertificateEntry[];
+}
+
+export interface ArticleSourcesPayload {
+  list: string[];
+  certificate?: SourceCertificate | null;
 }
 
 export interface FooterLink {

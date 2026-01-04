@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Article, AppSettings } from '../types';
 import MediaCarousel from './MediaCarousel';
+import { SourceCertificateCard } from './common/SourceCertificateCard';
 
-import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, Clock, Share2, PlayCircle, PauseCircle, BookOpen, Calendar, User, ExternalLink, ArrowRight, Check, Shield } from 'lucide-react';
 
 interface Props {
   article: Article;
@@ -265,7 +266,7 @@ const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio
         )}
         
         {/* Sources Section - Professional Domain Listing */}
-        {article.sources && article.sources.length > 0 && (
+        {(article.sources?.length ?? 0) > 0 && (
           <div className="mt-16 pt-8 border-t border-slate-200 dark:border-slate-800">
             <h4 className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-6">
                 <BookOpen size={14} />
@@ -293,6 +294,15 @@ const ArticleView: React.FC<Props> = ({ article, onBack, onNavigate, onPlayAudio
                 );
               })}
             </ul>
+          </div>
+        )}
+        {article.sourceCertificate && (
+          <div className="mt-12 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+              <Shield size={14} />
+              Certificado de Procedencia
+            </div>
+            <SourceCertificateCard certificate={article.sourceCertificate} variant="article" />
           </div>
         )}
 

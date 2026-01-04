@@ -10,6 +10,7 @@ import {
   GeneratorMediaItem, 
   RawSourceChunk 
 } from "./types";
+import type { SourceCertificate } from '../../types';
 
 let geminiApiKey = "";
 let ai: GoogleGenAI | null = null;
@@ -74,6 +75,68 @@ const normalizeToMarkdown = (input: string): string => {
   return text.trim();
 };
 
+const getDomainFromUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+};
+
+const categorizeDomain = (domain: string | null): string[] => {
+  if (!domain) return [];
+  const categories = new Set<string>();
+  if (domain.endsWith('.gov') || domain.includes('.gob.') || domain.includes('.gov.')) {
+    categories.add('oficial');
+  }
+  if (domain.includes('bank') || domain.includes('finance') || domain.includes('bloomberg') || domain.includes('ft.com') || domain.includes('wsj.com')) {
+    categories.add('finanzas');
+  }
+  if (domain.includes('edu') || domain.includes('.org')) {
+    categories.add('institucional');
+  }
+  categories.add('medios');
+  return Array.from(categories);
+};
+
+const buildSourceCertificate = (
+  sources: GeneratorSource[],
+  rawChunks: RawSourceChunk[]
+): SourceCertificate | null => {
+  if (!sources.length) return null;
+
+  const mentionMap = new Map<string, { count: number; snippet?: string | null }>();
+
+  rawChunks.forEach(chunk => {
+    const domain = getDomainFromUrl(chunk.uri);
+    if (!domain) return;
+    const current = mentionMap.get(domain) || { count: 0, snippet: chunk.snippet };
+    mentionMap.set(domain, {
+      count: current.count + 1,
+      snippet: current.snippet || chunk.snippet,
+    });
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totalMentions: rawChunks.length || sources.length,
+    sources: sources.map((source, idx) => {
+      const domain = source.domain || getDomainFromUrl(source.uri) || `dominio-${idx + 1}`;
+      const stats = mentionMap.get(domain);
+      return {
+        id: `${domain}-${idx}`,
+        name: source.title,
+        domain,
+        url: source.uri,
+        categories: source.categories || [],
+        mentions: stats?.count || 1,
+        snippet: stats?.snippet || null,
+      };
+    }),
+  };
+};
+
 export const generateNewsContent = async (
   input: string,
   mode: "topic" | "document",
@@ -89,6 +152,7 @@ export const generateNewsContent = async (
   keywords: string[];
   metaDescription: string;
   rawSourceChunks: RawSourceChunk[];
+  sourceCertificate: SourceCertificate | null;
 }> => {
   try {
     const client = requireAiClient();
@@ -240,13 +304,21 @@ export const generateNewsContent = async (
       if (!seenUris.has(uri) && !seenTitles.has(titleLabel)) {
         seenUris.add(uri);
         seenTitles.add(titleLabel);
-        uniqueSources.push({ title: titleLabel, uri });
+        const domain = getDomainFromUrl(uri);
+        uniqueSources.push({
+          title: titleLabel,
+          uri,
+          domain: domain || undefined,
+          categories: categorizeDomain(domain),
+        });
       }
     }
 
     if (mode === "document" && file) {
       uniqueSources.push({ title: file.name, uri: "#" });
     }
+
+    const sourceCertificate = buildSourceCertificate(uniqueSources, rawSourceChunks);
 
     return {
       title,
@@ -255,7 +327,8 @@ export const generateNewsContent = async (
       sources: uniqueSources,
       keywords,
       metaDescription,
-      rawSourceChunks
+      rawSourceChunks,
+      sourceCertificate
     };
   } catch (error) {
     console.error("Error generating text:", error);

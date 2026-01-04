@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { neon } from '@neondatabase/serverless';
+import { extractSourcesInfo, buildSourcePayload } from '../../shared/sourceCertificate';
 
 const connectionString = process.env.NETLIFY_DATABASE_URL;
 
@@ -27,25 +28,30 @@ interface ArticleRow {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,OPTIONS',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const mapRowToArticle = (row: ArticleRow) => ({
-  id: row.id,
-  title: row.title,
-  excerpt: row.excerpt,
-  content: row.content,
-  media: row.media ?? [],
-  audioUrl: row.audio_url ?? undefined,
-  category: row.category,
-  date: row.date,
-  author: row.author,
-  featured: row.featured ?? false,
-  readTime: row.read_time ?? 5,
-  sources: row.sources ?? [],
-  views: row.views ?? 0,
-});
+const mapRowToArticle = (row: ArticleRow) => {
+  const { list, certificate } = extractSourcesInfo(row.sources);
+
+  return {
+    id: row.id,
+    title: row.title,
+    excerpt: row.excerpt,
+    content: row.content,
+    media: row.media ?? [],
+    audioUrl: row.audio_url ?? undefined,
+    category: row.category,
+    date: row.date,
+    author: row.author,
+    featured: row.featured ?? false,
+    readTime: row.read_time ?? 5,
+    sources: list,
+    sourceCertificate: certificate,
+    views: row.views ?? 0,
+  };
+};
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -152,6 +158,8 @@ export const handler: Handler = async (event) => {
         article.excerpt = base.substring(0, 200);
       }
 
+      const sourcePayload = buildSourcePayload(article.sources ?? [], article.sourceCertificate);
+
       const rows = await sql`INSERT INTO articles (
           id,
           title,
@@ -178,7 +186,7 @@ export const handler: Handler = async (event) => {
           ${article.author},
           ${article.featured ?? false},
           ${article.readTime ?? 5},
-          ${JSON.stringify(article.sources ?? [])},
+          ${JSON.stringify(sourcePayload)},
           ${article.views ?? 0}
         )
         ON CONFLICT (id) DO UPDATE SET

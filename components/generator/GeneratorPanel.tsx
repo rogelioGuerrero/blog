@@ -84,6 +84,10 @@ const saveHistory = (history: GeneratedArticle[]) => {
 
 // Convert GeneratedArticle to Blog Article format
 const convertToBlogArticle = (generated: GeneratedArticle): Omit<Article, 'id'> => {
+  const sourceList = generated.sources
+    .map(s => s.uri)
+    .filter(u => u && u !== '#');
+
   return {
     title: generated.title,
     excerpt: generated.metaDescription || generated.content.substring(0, 200) + '...',
@@ -105,7 +109,8 @@ const convertToBlogArticle = (generated: GeneratedArticle): Omit<Article, 'id'> 
     author: 'Redacción',
     featured: false,
     readTime: Math.ceil(generated.content.split(/\s+/).length / 200),
-    sources: generated.sources.map(s => s.uri).filter(u => u !== '#'),
+    sources: Array.from(new Set(sourceList)),
+    sourceCertificate: generated.sourceCertificate ?? null,
     views: 0
   };
 };
@@ -222,6 +227,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         content: textData.content,
         sources: textData.sources,
         rawSources: textData.rawSourceChunks,
+        sourceCertificate: textData.sourceCertificate,
         media: [],
         language,
         keywords: textData.keywords,
