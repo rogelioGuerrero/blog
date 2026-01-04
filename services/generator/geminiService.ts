@@ -336,26 +336,38 @@ export const generateNewsContent = async (
   }
 };
 
+const IMAGE_MODEL_CANDIDATES = [
+  "imagen-3.0-fast",
+  "imagen-3.0-generate-001"
+];
+
 export const generateNewsImages = async (prompt: string): Promise<string[]> => {
-  try {
-    const client = requireAiClient();
-    const response = await client.models.generateImages({
-      model: "imagen-3.0-generate-002",
-      prompt,
-      config: {
-        numberOfImages: 3,
-        aspectRatio: "16:9",
-        outputMimeType: "image/jpeg"
+  const client = requireAiClient();
+
+  for (const model of IMAGE_MODEL_CANDIDATES) {
+    try {
+      const response = await client.models.generateImages({
+        model,
+        prompt,
+        config: {
+          numberOfImages: 3,
+          aspectRatio: "16:9",
+          outputMimeType: "image/jpeg"
+        }
+      });
+
+      if (!response.generatedImages) {
+        throw new Error("No images generated");
       }
-    });
 
-    if (!response.generatedImages) throw new Error("No images generated");
-
-    return response.generatedImages.map((img: any) => img.image.imageBytes);
-  } catch (error) {
-    console.error("Error generating images:", error);
-    return [];
+      return response.generatedImages.map((img: any) => img.image.imageBytes);
+    } catch (error) {
+      console.warn(`Image generation failed for model ${model}`, error);
+    }
   }
+
+  console.error("All image generation attempts failed");
+  return [];
 };
 
 export const generateNewsAudio = async (text: string, language: GeneratorLanguage, settings: GeneratorAdvancedSettings): Promise<string> => {
