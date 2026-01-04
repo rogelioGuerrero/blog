@@ -152,7 +152,9 @@ export const generateNewsContent = async (
     |||IMAGE_PROMPT|||
     (Write a highly detailed English prompt for an image generator.)
     |||METADATA|||
-    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))`;
+    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))
+    |||SOURCES|||
+    (Provide a strict JSON array like [{"title":"Source Headline","url":"https://example.com/..."}] listing every external reference actually used. Do not invent links; skip any source you cannot cite.)`;
 
     if (mode === "document" && file) {
       contents = [
@@ -207,6 +209,7 @@ export const generateNewsContent = async (
     const content = normalizeToMarkdown(rawContent);
     const imagePrompt = parts[3]?.trim() || `Editorial illustration representing ${input}`;
     const metadataRaw = parts[4]?.trim() || "{}";
+    const sourcesRaw = parts[5]?.trim() || "[]";
 
     let keywords: string[] = [];
     let metaDescription = "";
@@ -220,9 +223,35 @@ export const generateNewsContent = async (
       console.warn("Failed to parse metadata JSON", e);
     }
 
+    let declaredSources: Array<{ title?: string; url?: string; uri?: string }> = [];
+    try {
+      const jsonStr = sourcesRaw.replace(/```json|```/g, "");
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed)) {
+        declaredSources = parsed;
+      }
+    } catch (e) {
+      console.warn("Failed to parse sources JSON", e);
+    }
+
+    const declaredChunks: RawSourceChunk[] = declaredSources
+      .map((entry) => {
+        if (!entry) return null;
+        const title = typeof entry.title === "string" ? entry.title.trim() : "";
+        const uri = typeof entry.url === "string" ? entry.url.trim() : typeof entry.uri === "string" ? entry.uri.trim() : "";
+        if (!title || !uri) return null;
+        return {
+          title,
+          uri,
+          snippet: null,
+          provider: "model_declared"
+        } as RawSourceChunk;
+      })
+      .filter((chunk): chunk is RawSourceChunk => !!chunk?.uri && !!chunk?.title);
+
     const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    const rawSourceChunks: RawSourceChunk[] = chunks.map((chunk: any) => {
+    let rawSourceChunks: RawSourceChunk[] = chunks.map((chunk: any) => {
       const source = chunk.web ?? chunk;
       return {
         title: source?.title ?? chunk.title ?? null,
@@ -231,6 +260,10 @@ export const generateNewsContent = async (
         provider: source?.provider ?? chunk.provider ?? null
       };
     });
+
+    if (rawSourceChunks.length === 0 && declaredChunks.length > 0) {
+      rawSourceChunks = declaredChunks;
+    }
 
     const rawSources = rawSourceChunks
       .map((chunk) => {
