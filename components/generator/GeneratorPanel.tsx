@@ -224,6 +224,8 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
 
     try {
       const textData = await generateNewsContent(input, mode, file, language, length, settings);
+      console.log("Paso 1 – textData.sources", textData.sources);
+      console.log("Paso 1 – textData.rawSourceChunks", textData.rawSourceChunks);
       
       const partialArticle: GeneratedArticle = {
         id: Date.now().toString(),
@@ -239,6 +241,8 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         metaDescription: textData.metaDescription,
         imagePrompt: textData.imagePrompt
       };
+      console.log("Paso 2 – partialArticle.sources", partialArticle.sources);
+      console.log("Paso 2 – partialArticle.rawSources", partialArticle.rawSources);
       
       setArticle(partialArticle);
       setAdvancedSettings(settings);
