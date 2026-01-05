@@ -1,35 +1,126 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 import { 
   GeneratorSource, 
   UploadedFile, 
   GeneratorLanguage, 
   ArticleLength, 
   GeneratorAdvancedSettings, 
-  ArticleTone, 
-  GeneratorMediaItem,
   RawSourceChunk 
 } from "./types";
 
 let geminiApiKey = "";
-let ai: GoogleGenAI | null = null;
 
 export const setGeminiApiKey = (key: string) => {
   geminiApiKey = key;
-  ai = geminiApiKey
-    ? new GoogleGenAI({
-        apiKey: geminiApiKey,
-        apiVersion: "v1beta1"
-      })
-    : null;
 };
 
 export const hasGeminiApiKey = () => !!geminiApiKey;
 
-const requireAiClient = () => {
-  if (!ai) {
-    throw new Error("Gemini API Key no configurada. Abre la Configuración para agregarla.");
+const generatorEndpoint = "/api/generator";
+
+const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> => {
+  const response = await fetch(generatorEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      ...payload,
+      apiKey: geminiApiKey || undefined
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "Error llamando al generador");
   }
-  return ai;
+
+  return response.json() as Promise<T>;
+};
+
+
+const getDomainFromUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+};
+
+const categorizeDomain = (domain: string | null): string[] => {
+  if (!domain) return [];
+  const categories = new Set<string>();
+  if (domain.endsWith('.gov') || domain.includes('.gob.') || domain.includes('.gov.')) {
+    categories.add('oficial');
+  }
+  if (domain.includes('bank') || domain.includes('finance') || domain.includes('bloomberg') || domain.includes('ft.com') || domain.includes('wsj.com')) {
+    categories.add('finanzas');
+  }
+  if (domain.includes('edu') || domain.includes('.org')) {
+    categories.add('institucional');
+  }
+  categories.add('medios');
+  return Array.from(categories);
+};
+
+export const generateNewsContent = async (
+  input: string,
+  mode: "topic" | "document",
+  file: UploadedFile | null,
+  language: GeneratorLanguage,
+  length: ArticleLength,
+  settings: GeneratorAdvancedSettings
+): Promise<{
+  title: string;
+  content: string;
+  sources: GeneratorSource[];
+  rawSourceChunks: RawSourceChunk[];
+  imagePrompt: string;
+  keywords: string[];
+  metaDescription: string;
+}> => {
+  const { textData } = await callGenerator<{
+    textData: {
+      title: string;
+      content: string;
+      sources: GeneratorSource[];
+      rawSourceChunks: RawSourceChunk[];
+      imagePrompt: string;
+      keywords: string[];
+      metaDescription: string;
+    };
+  }>({
+    action: "text",
+    input,
+    mode,
+    file,
+    language,
+    length,
+    settings
+  });
+
+  return {
+    ...textData,
+    content: normalizeToMarkdown(textData.content)
+  };
+};
+
+export const generateNewsImages = async (prompt: string): Promise<string[]> => {
+  const { images } = await callGenerator<{ images: string[] }>({
+    action: "images",
+    prompt
+  });
+  return images;
+};
+
+export const generateNewsAudio = async (text: string, language: GeneratorLanguage, settings: GeneratorAdvancedSettings): Promise<string> => {
+  const { audioUrl } = await callGenerator<{ audioUrl: string }>({
+    action: "audio",
+    text,
+    language,
+    settings
+  });
+  return audioUrl;
 };
 
 const normalizeToMarkdown = (input: string): string => {
@@ -77,388 +168,3 @@ const normalizeToMarkdown = (input: string): string => {
 
   return text.trim();
 };
-
-const getDomainFromUrl = (url?: string | null): string | null => {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-};
-
-const categorizeDomain = (domain: string | null): string[] => {
-  if (!domain) return [];
-  const categories = new Set<string>();
-  if (domain.endsWith('.gov') || domain.includes('.gob.') || domain.includes('.gov.')) {
-    categories.add('oficial');
-  }
-  if (domain.includes('bank') || domain.includes('finance') || domain.includes('bloomberg') || domain.includes('ft.com') || domain.includes('wsj.com')) {
-    categories.add('finanzas');
-  }
-  if (domain.includes('edu') || domain.includes('.org')) {
-    categories.add('institucional');
-  }
-  categories.add('medios');
-  return Array.from(categories);
-};
-
-export const generateNewsContent = async (
-  input: string,
-  mode: "topic" | "document",
-  file: UploadedFile | null,
-  language: GeneratorLanguage,
-  length: ArticleLength,
-  settings: GeneratorAdvancedSettings
-): Promise<{
-  title: string;
-  content: string;
-  sources: GeneratorSource[];
-  rawSourceChunks: RawSourceChunk[];
-  imagePrompt: string;
-  keywords: string[];
-  metaDescription: string;
-}> => {
-  try {
-    const client = requireAiClient();
-    let contents: any[] = [];
-    let tools: any[] = [];
-
-    const langNames = { es: "Spanish", en: "English", fr: "French", pt: "Portuguese", de: "German" };
-    const targetLang = langNames[language];
-
-    const lengthGuide = { short: "approx 300 words", medium: "approx 600 words", long: "approx 1000 words" };
-
-    const systemPrompt = `You are a world-class journalist engine. 
-    Target Language: ${targetLang}.
-    Target Length: ${lengthGuide[length]}.
-    
-    STYLE CONFIGURATION:
-    - Tone: ${settings.tone.toUpperCase()}
-    - Target Audience: ${settings.audience.toUpperCase()}
-    - Editorial Focus (Angle): ${settings.focus.toUpperCase()}
-    
-    SOURCE QUALITY BASELINE (ALWAYS ENFORCED):
-    - When using external information or news coverage, always rely on reputable, well-known news outlets and official institutions.
-    - Avoid blogs, forums, tabloids, and low-credibility websites as primary sources.
-    
-    CONTENT REQUIREMENTS (STRICT):
-    ${settings.includeQuotes ? "- MUST include direct quotes (with attribution) from relevant figures or documents." : ""}
-    ${settings.includeStats ? "- MUST include specific data, statistics, percentages, or financial figures." : ""}
-    ${settings.includeCounterArguments ? "- MUST include a counter-argument, alternative perspective, or risks involved to ensure balance." : ""}
-    
-    Task: Write a news article following these constraints.
-    
-    Structure the response with these EXACT separators:
-    |||HEADLINE|||
-    (Write the catchy headline here)
-    |||BODY|||
-    (Write the article body in Markdown here. Use H3 for subheaders.)
-    |||IMAGE_PROMPT|||
-    (Write a highly detailed English prompt for an image generator.)
-    |||METADATA|||
-    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))
-    |||SOURCES|||
-    (Provide a strict JSON array like [{"title":"Source Headline","url":"https://example.com/..."}] listing every external reference actually used. Do not invent links; skip any source you cannot cite.)`;
-
-    if (mode === "document" && file) {
-      contents = [
-        { inlineData: { mimeType: file.mimeType, data: file.data } },
-        { text: `${systemPrompt}\n\nSource Material Provided. Instruction: ${input || "Create a story based on this document."}` }
-      ];
-    } else {
-      let searchContext = `Topic: "${input}".`;
-
-      if (settings.timeFrame !== "any") {
-        searchContext += ` Focus on events from the last ${settings.timeFrame}.`;
-      }
-
-      const regionInstructions: Record<string, string> = {
-        world: "Use global sources.",
-        us: "Prioritize US-based Tier 1 sources (e.g., NYT, WSJ, Washington Post). Ignore derivative content.",
-        eu: "Prioritize European sources (e.g., BBC, DW, Le Monde, El Pais).",
-        latam: "Prioritize Latin American sources.",
-        asia: "Prioritize Asian sources."
-      };
-      searchContext += ` ${regionInstructions[settings.sourceRegion]}`;
-
-      if (settings.preferredDomains.length > 0) {
-        searchContext += ` Give preference to these vetted domains when available: ${settings.preferredDomains.join(", ")}. You may still cite other reputable, well-sourced outlets if they strengthen the story.`;
-      }
-
-      if (settings.blockedDomains.length > 0) {
-        searchContext += ` Do NOT use information from these domains: ${settings.blockedDomains.join(", ")}.`;
-      }
-
-      if (settings.verifiedSourcesOnly) {
-        searchContext += " STRICTLY use only verified, authoritative, and reputable news sources. Do not use blogs, forums, or tabloid sites.";
-      }
-
-      contents = [{ text: `${systemPrompt}\n\n${searchContext}` }];
-      tools = [{ googleSearch: {} }];
-    }
-
-    const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents,
-      config: {
-        tools: tools.length > 0 ? tools : undefined
-      }
-    });
-
-    const fullText = response.text || "";
-    const parts = fullText.split(/\|\|\|[A-Z_]+\|\|\|/);
-
-    const title = parts[1]?.trim() || "Noticia Generada";
-    const rawContent = parts[2]?.trim() || fullText;
-    const content = normalizeToMarkdown(rawContent);
-    const imagePrompt = parts[3]?.trim() || `Editorial illustration representing ${input}`;
-    const metadataRaw = parts[4]?.trim() || "{}";
-    const sourcesRaw = parts[5]?.trim() || "[]";
-
-    let keywords: string[] = [];
-    let metaDescription = "";
-
-    try {
-      const jsonStr = metadataRaw.replace(/```json|```/g, "");
-      const metadata = JSON.parse(jsonStr);
-      keywords = metadata.keywords || [];
-      metaDescription = metadata.metaDescription || "";
-    } catch (e) {
-      console.warn("Failed to parse metadata JSON", e);
-    }
-
-    let declaredSources: Array<{ title?: string; url?: string; uri?: string }> = [];
-    try {
-      const jsonStr = sourcesRaw.replace(/```json|```/g, "");
-      const parsed = JSON.parse(jsonStr);
-      if (Array.isArray(parsed)) {
-        declaredSources = parsed;
-      }
-    } catch (e) {
-      console.warn("Failed to parse sources JSON", e);
-    }
-
-    const declaredChunks: RawSourceChunk[] = declaredSources
-      .map((entry) => {
-        if (!entry) return null;
-        const title = typeof entry.title === "string" ? entry.title.trim() : "";
-        const uri = typeof entry.url === "string" ? entry.url.trim() : typeof entry.uri === "string" ? entry.uri.trim() : "";
-        if (!title || !uri) return null;
-        return {
-          title,
-          uri,
-          snippet: null,
-          provider: "model_declared"
-        } as RawSourceChunk;
-      })
-      .filter((chunk): chunk is RawSourceChunk => !!chunk?.uri && !!chunk?.title);
-
-    const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-
-    let rawSourceChunks: RawSourceChunk[] = chunks.map((chunk: any) => {
-      const source = chunk.web ?? chunk;
-      return {
-        title: source?.title ?? chunk.title ?? null,
-        uri: source?.uri ?? chunk.uri ?? null,
-        snippet: source?.snippet ?? chunk.snippet ?? null,
-        provider: source?.provider ?? chunk.provider ?? null
-      };
-    });
-
-    if (rawSourceChunks.length === 0 && declaredChunks.length > 0) {
-      rawSourceChunks = declaredChunks;
-    }
-
-    const rawSources = rawSourceChunks
-      .map((chunk) => {
-        if (chunk.uri && chunk.title) {
-          return { title: chunk.title, uri: chunk.uri };
-        }
-        return null;
-      })
-      .filter((s): s is { title: string; uri: string } => s !== null);
-
-    const uniqueSources: GeneratorSource[] = [];
-    const seenUris = new Set<string>();
-    const seenTitles = new Set<string>();
-
-    for (const source of rawSources) {
-      const uri = source.uri;
-      const isVertexRedirect = uri.includes("vertexaisearch");
-      const isGoogleSearch = uri.includes("google.com/search") || uri.includes("google.com/url");
-
-      if (isGoogleSearch) {
-        continue;
-      }
-
-      let titleLabel = source.title.trim();
-
-      if (isVertexRedirect) {
-        const candidate = titleLabel;
-        if (!(candidate.includes('.') && !candidate.includes(' '))) {
-          titleLabel = 'Referencia verificada';
-        }
-      } else if (titleLabel.includes("http") || titleLabel.includes("www.") || titleLabel.length > 100) {
-        try {
-          const hostname = new URL(uri).hostname;
-          titleLabel = hostname.replace("www.", "");
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      if (!seenUris.has(uri) && !seenTitles.has(titleLabel)) {
-        seenUris.add(uri);
-        seenTitles.add(titleLabel);
-        const domain = getDomainFromUrl(uri) || (titleLabel.includes('.') && !titleLabel.includes(' ') ? titleLabel : null);
-        uniqueSources.push({
-          title: titleLabel,
-          uri,
-          domain: domain || undefined,
-          categories: categorizeDomain(domain),
-        });
-      }
-    }
-
-    if (mode === "document" && file) {
-      uniqueSources.push({ title: file.name, uri: "#" });
-    }
-
-    return {
-      title,
-      content,
-      imagePrompt,
-      sources: uniqueSources,
-      rawSourceChunks,
-      keywords,
-      metaDescription
-    };
-  } catch (error) {
-    console.error("Error generating text:", error);
-    throw error;
-  }
-};
-
-const IMAGE_MODEL_CANDIDATES = [
-  "imagen-3.0-fast-generate-001",
-  "imagen-3.0-generate-001"
-];
-
-export const generateNewsImages = async (prompt: string): Promise<string[]> => {
-  const client = requireAiClient();
-
-  for (const model of IMAGE_MODEL_CANDIDATES) {
-    try {
-      const response = await client.models.generateImages({
-        model,
-        prompt,
-        config: {
-          numberOfImages: 3,
-          aspectRatio: "16:9",
-          outputMimeType: "image/jpeg"
-        }
-      });
-
-      if (!response.generatedImages) {
-        throw new Error("No images generated");
-      }
-
-      return response.generatedImages.map((img: any) => img.image.imageBytes);
-    } catch (error) {
-      console.warn(`Image generation failed for model ${model}`, error);
-    }
-  }
-
-  console.error("All image generation attempts failed");
-  return [];
-};
-
-export const generateNewsAudio = async (text: string, language: GeneratorLanguage, settings: GeneratorAdvancedSettings): Promise<string> => {
-  try {
-    const client = requireAiClient();
-    let selectedVoice = "Aoede";
-
-    const voiceByTone: Record<ArticleTone, string> = {
-      objective: "Fenrir",
-      corporate: "Fenrir",
-      editorial: "Aoede",
-      narrative: "Aoede",
-      explanatory: "Zephyr",
-      sensational: "Puck",
-      satirical: "Puck"
-    };
-
-    if (settings && settings.tone) {
-      selectedVoice = voiceByTone[settings.tone] || "Aoede";
-    }
-
-    const safeText = text.length > 40000 ? text.substring(0, 40000) + "..." : text;
-
-    const response = await client.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: safeText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: selectedVoice }
-          }
-        }
-      }
-    });
-
-    const base64Audio = (response as any).candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio generated");
-
-    return pcmToWavBlob(base64Audio, 24000);
-  } catch (error) {
-    console.error("Error generating audio:", error);
-    throw error;
-  }
-};
-
-// Helper to convert PCM to WAV
-const pcmToWavBlob = (rawBase64: string, sampleRate: number = 24000): string => {
-  const binaryString = atob(rawBase64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  const dataLen = bytes.length;
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const wavHeader = new ArrayBuffer(44);
-  const view = new DataView(wavHeader);
-
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataLen, true);
-  writeString(view, 8, "WAVE");
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(view, 36, "data");
-  view.setUint32(40, dataLen, true);
-
-  const wavBytes = new Uint8Array(wavHeader.byteLength + dataLen);
-  wavBytes.set(new Uint8Array(wavHeader), 0);
-  wavBytes.set(bytes, 44);
-
-  const blob = new Blob([wavBytes], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
-};
-
-function writeString(view: DataView, offset: number, string: string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
