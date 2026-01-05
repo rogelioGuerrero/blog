@@ -341,9 +341,8 @@ export const generateNewsContent = async (
 };
 
 const IMAGE_MODEL_CANDIDATES = [
-  "imagen-3.0",
-  "imagen-3.0-light",
-  "imagen-3.0-pro"
+  "imagen-3.0-fast-generate-001",
+  "imagen-3.0-generate-001"
 ];
 
 export const generateNewsImages = async (prompt: string): Promise<string[]> => {

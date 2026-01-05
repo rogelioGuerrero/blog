@@ -121,6 +121,29 @@ export const GeneratorTextReview: React.FC<GeneratorTextReviewProps> = ({
         </div>
       )}
 
+      {/* Debug Sources */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <details className="p-4 space-y-3 text-xs text-slate-600 dark:text-slate-300" open={!hasVerifiedSources}>
+          <summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-200">
+            Diagnóstico de fuentes (debug)
+          </summary>
+          <div className="space-y-2">
+            <div>
+              <p className="font-semibold mb-1">article.sources ({article.sources.length})</p>
+              <pre className="whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700 max-h-40 overflow-y-auto">
+                {JSON.stringify(article.sources, null, 2)}
+              </pre>
+            </div>
+            <div>
+              <p className="font-semibold mb-1">article.rawSources ({article.rawSources?.length ?? 0})</p>
+              <pre className="whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700 max-h-40 overflow-y-auto">
+                {JSON.stringify(article.rawSources ?? [], null, 2)}
+              </pre>
+            </div>
+          </div>
+        </details>
+      </div>
+
       {/* Sources */}
       {hasVerifiedSources && (
         <div className="space-y-2">
