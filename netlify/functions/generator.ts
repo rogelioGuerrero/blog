@@ -42,6 +42,8 @@ const IMAGE_MODEL_CANDIDATES = [
   "imagen-3.0-generate-001"
 ];
 
+const GEMINI_SEARCH_ENABLED = Netlify.env.get("GEMINI_SEARCH_ENABLED") === "true";
+
 const langNames: Record<GeneratorLanguage, string> = {
   es: "Spanish",
   en: "English",
@@ -168,7 +170,9 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     }
 
     contents = [{ text: `${systemPrompt}\n\n${searchContext}` }];
-    tools = [{ googleSearch: {} }];
+    if (GEMINI_SEARCH_ENABLED) {
+      tools = [{ googleSearch: {} }];
+    }
   }
 
   const response = await ai.models.generateContent({
