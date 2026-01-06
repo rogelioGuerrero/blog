@@ -44,6 +44,30 @@ const IMAGE_MODEL_CANDIDATES = [
 
 const GEMINI_SEARCH_ENABLED = Netlify.env.get("GEMINI_SEARCH_ENABLED") === "true";
 
+const isToolNotFoundError = (error: any): boolean => {
+  const statusCandidates = [
+    error?.status,
+    error?.code,
+    error?.error?.status,
+    error?.error?.code
+  ];
+
+  const normalizedStatus = statusCandidates
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => (typeof value === "string" ? value.toUpperCase() : value));
+
+  if (normalizedStatus.some((value) => value === 404 || value === "404")) {
+    return true;
+  }
+
+  if (normalizedStatus.some((value) => typeof value === "string" && value.includes("NOT FOUND"))) {
+    return true;
+  }
+
+  const message = (error?.message || error?.error?.message || "").toLowerCase();
+  return message.includes("googlesearch") || message.includes("vertex");
+};
+
 const langNames: Record<GeneratorLanguage, string> = {
   es: "Spanish",
   en: "English",
@@ -175,13 +199,28 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     }
   }
 
-  const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
-    contents,
-    config: {
-      tools: tools.length > 0 ? tools : undefined
+  const usesGoogleSearch = tools.some((tool) => Object.prototype.hasOwnProperty.call(tool, "googleSearch"));
+
+  let response;
+  try {
+    response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents,
+      config: {
+        tools: tools.length > 0 ? tools : undefined
+      }
+    });
+  } catch (error) {
+    if (usesGoogleSearch && isToolNotFoundError(error)) {
+      console.warn("googleSearch tool unavailable, retrying without it");
+      response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents
+      });
+    } else {
+      throw error;
     }
-  });
+  }
 
   const fullText = response.text || "";
   const parts = fullText.split(/\|\|\|[A-Z_]+\|\|\|/);
