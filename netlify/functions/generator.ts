@@ -38,11 +38,10 @@ type GeneratorRequestPayload = (TextRequestPayload | ImagesRequestPayload | Audi
 };
 
 const IMAGE_MODEL_CANDIDATES = [
-  "gemini-2.5-flash-image",
-  "gemini-3-pro-image-preview",
-  "imagen-3-fast-generate-001",
+  "imagen-3.0-generate-001",
   "imagen-3.0-fast-generate-001",
-  "imagen-3.0-generate-001"
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image-preview"
 ];
 
 const GEMINI_SEARCH_ENABLED = process.env.GEMINI_SEARCH_ENABLED === "true";
@@ -369,7 +368,7 @@ const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPaylo
   const safeText = text.length > 40000 ? text.substring(0, 40000) + "..." : text;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
+    model: "gemini-2.0-flash-exp",
     contents: [
       {
         role: "user",
