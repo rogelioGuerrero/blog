@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Key, Globe, ShieldCheck } from 'lucide-react';
-import { GeneratorConfig, getRegionPreferredDomains } from '../../services/generator';
+import { GeneratorConfig, getRegionPreferredDomains, AIProvider } from '../../services/generator';
 
 interface GeneratorSettingsProps {
   isOpen: boolean;
@@ -22,14 +22,18 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
   onClose, 
   onSave 
 }) => {
+  const [activeProvider, setActiveProvider] = useState<AIProvider>('gemini');
   const [geminiKey, setGeminiKey] = useState('');
+  const [deepseekKey, setDeepseekKey] = useState('');
   const [pexelsKey, setPexelsKey] = useState('');
   const [preferredDomains, setPreferredDomains] = useState('');
   const [blockedDomains, setBlockedDomains] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
+    setActiveProvider(initialConfig.activeProvider || 'gemini');
     setGeminiKey(initialConfig.geminiApiKey || '');
+    setDeepseekKey(initialConfig.deepseekApiKey || '');
     setPexelsKey(initialConfig.pexelsApiKey || '');
     setPreferredDomains(formatList(initialConfig.preferredDomains || []));
     setBlockedDomains(formatList(initialConfig.blockedDomains || []));
@@ -39,7 +43,9 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
 
   const handleSave = () => {
     onSave({
+      activeProvider,
       geminiApiKey: geminiKey.trim(),
+      deepseekApiKey: deepseekKey.trim(),
       pexelsApiKey: pexelsKey.trim(),
       preferredDomains: parseList(preferredDomains),
       blockedDomains: parseList(blockedDomains)
@@ -48,7 +54,7 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
@@ -66,6 +72,18 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
 
         <div className="space-y-4">
           <label className="block space-y-1.5">
+            <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Proveedor de IA Activo</span>
+            <select 
+              value={activeProvider}
+              onChange={(e) => setActiveProvider(e.target.value as AIProvider)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+            >
+              <option value="gemini">Google Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </label>
+
+          <label className="block space-y-1.5">
             <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <ShieldCheck size={12} /> Gemini API Key
             </span>
@@ -81,16 +99,29 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
 
           <label className="block space-y-1.5">
             <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <ShieldCheck size={12} /> DeepSeek API Key
+            </span>
+            <input 
+              type="password"
+              value={deepseekKey}
+              onChange={(e) => setDeepseekKey(e.target.value)}
+              placeholder="sk-..."
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+            />
+            <p className="text-[10px] text-slate-400">Obtén tu clave en <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">DeepSeek Platform</a></p>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <Globe size={12} /> Pexels API Key
             </span>
             <input 
               type="password"
               value={pexelsKey}
               onChange={(e) => setPexelsKey(e.target.value)}
-              placeholder="563492ad6f91700001000001..."
+              placeholder="5634..."
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
             />
-            <p className="text-[10px] text-slate-400">Obtén tu clave en <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Pexels API</a></p>
           </label>
 
           <label className="block space-y-1.5">

@@ -83,8 +83,12 @@ export interface UploadedFile {
   name: string;
 }
 
+export type AIProvider = 'gemini' | 'deepseek';
+
 export interface GeneratorConfig {
+  activeProvider: AIProvider;
   geminiApiKey: string;
+  deepseekApiKey: string;
   pexelsApiKey: string;
   preferredDomains: string[];
   blockedDomains: string[];

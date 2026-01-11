@@ -99,7 +99,7 @@ export default async (req: Request) => {
       return jsonResponse({ error: "Gemini API key is required" }, 400);
     }
 
-    const ai = new GoogleGenAI({ apiKey, apiVersion: "v1beta1" });
+    const ai = new GoogleGenAI(apiKey);
 
     switch (body.action) {
       case "text":
@@ -143,7 +143,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     ${settings.includeStats ? "- MUST include specific data, statistics, percentages, or financial figures." : ""}
     ${settings.includeCounterArguments ? "- MUST include a counter-argument, alternative perspective, or risks involved to ensure balance." : ""}
     
-    Task: Write a news article following these constraints.
+    Task: Write a news article following these constraints. Use your internal knowledge to provide accurate and verifiable information.
     
     Structure the response with these EXACT separators:
     |||HEADLINE|||
@@ -153,12 +153,9 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     |||IMAGE_PROMPT|||
     (Write a highly detailed English prompt for an image generator.)
     |||METADATA|||
-    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))
-    |||SOURCES|||
-    (Provide a strict JSON array like [{"title":"Source Headline","url":"https://example.com/..."}] listing every external reference actually used. Do not invent links; skip any source you cannot cite.)`;
+    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))`;
 
   let contents: any[] = [];
-  let tools: any[] = [];
 
   if (mode === "document" && file) {
     contents = [
@@ -166,64 +163,23 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
       { text: `${systemPrompt}\n\nSource Material Provided. Instruction: ${input || "Create a story based on this document."}` }
     ];
   } else {
-    let searchContext = `Topic: "${input}".`;
+    let userPrompt = `Topic: "${input}".`;
 
     if (settings.timeFrame !== "any") {
-      searchContext += ` Focus on events from the last ${settings.timeFrame}.`;
+      userPrompt += ` Focus on events from the last ${settings.timeFrame} if possible.`;
     }
 
-    const regionInstructions: Record<string, string> = {
-      world: "Use global sources.",
-      us: "Prioritize US-based Tier 1 sources (e.g., NYT, WSJ, Washington Post). Ignore derivative content.",
-      eu: "Prioritize European sources (e.g., BBC, DW, Le Monde, El Pais).",
-      latam: "Prioritize Latin American sources.",
-      asia: "Prioritize Asian sources."
-    };
-    searchContext += ` ${regionInstructions[settings.sourceRegion]}`;
-
-    if (settings.preferredDomains.length > 0) {
-      searchContext += ` Give preference to these vetted domains when available: ${settings.preferredDomains.join(", ")}. You may still cite other reputable, well-sourced outlets if they strengthen the story.`;
-    }
-
-    if (settings.blockedDomains.length > 0) {
-      searchContext += ` Do NOT use information from these domains: ${settings.blockedDomains.join(", ")}.`;
-    }
-
-    if (settings.verifiedSourcesOnly) {
-      searchContext += " STRICTLY use only verified, authoritative, and reputable news sources. Do not use blogs, forums, or tabloid sites.";
-    }
-
-    contents = [{ text: `${systemPrompt}\n\n${searchContext}` }];
-    if (GEMINI_SEARCH_ENABLED) {
-      tools = [{ googleSearch: {} }];
-    }
+    contents = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
   }
 
-  const usesGoogleSearch = tools.some((tool) => Object.prototype.hasOwnProperty.call(tool, "googleSearch"));
+  const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
+  const result = await model.generateContent({
+    contents
+  });
 
-  let response;
-  try {
-    response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents,
-      config: {
-        tools: tools.length > 0 ? tools : undefined
-      }
-    });
-  } catch (error) {
-    if (usesGoogleSearch && isToolNotFoundError(error)) {
-      console.warn("googleSearch tool unavailable, retrying without it");
-      response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents
-      });
-    } else {
-      throw error;
-    }
-  }
-
-  const fullText = response.text || "";
+  const fullText = result.response.text() || "";
   const parts = fullText.split(/\|\|\|[A-Z_]+\|\|\|/);
+
 
   const title = parts[1]?.trim() || "Noticia Generada";
   const rawContent = parts[2]?.trim() || fullText;
@@ -270,7 +226,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     })
     .filter((chunk): chunk is RawSourceChunk => !!chunk?.uri && !!chunk?.title);
 
-  const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  const chunks = (result as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
   let rawSourceChunks: RawSourceChunk[] = chunks.map((chunk: any) => {
     const source = chunk.web ?? chunk;

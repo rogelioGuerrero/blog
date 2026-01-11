@@ -32,6 +32,12 @@ import {
   setPexelsApiKey,
   hasPexelsApiKey
 } from '../../services/generator/pexelsService';
+import {
+  generateArticleWithDeepseek,
+  generateSocialPostWithDeepseek,
+  setDeepseekApiKey,
+  hasDeepseekApiKey
+} from '../../services/generator/deepseekService';
 import { saveArticleToApi } from '../../services/api';
 import { Article } from '../../types';
 
@@ -55,7 +61,9 @@ const loadConfig = (): GeneratorConfig => {
     console.warn('Failed to load generator config', e);
   }
   return {
+    activeProvider: 'gemini',
     geminiApiKey: '',
+    deepseekApiKey: '',
     pexelsApiKey: '',
     preferredDomains: getRegionPreferredDomains('world'),
     blockedDomains: []
@@ -152,6 +160,9 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     if (config.geminiApiKey) {
       setGeminiApiKey(config.geminiApiKey);
     }
+    if (config.deepseekApiKey) {
+      setDeepseekApiKey(config.deepseekApiKey);
+    }
     if (config.pexelsApiKey) {
       setPexelsApiKey(config.pexelsApiKey);
     }
@@ -212,37 +223,41 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     length: ArticleLength,
     settings: GeneratorAdvancedSettings
   ) => {
-    if (!hasGeminiApiKey()) {
-      setError('Configura tu Gemini API Key primero');
+    const isDeepseek = config.activeProvider === 'deepseek';
+    const hasKey = isDeepseek ? hasDeepseekApiKey() : hasGeminiApiKey();
+
+    if (!hasKey) {
+      setError(`Configura tu ${isDeepseek ? 'DeepSeek' : 'Gemini'} API Key primero`);
       setShowSettings(true);
       return;
     }
 
     setError(null);
     setIsGenerating(true);
-    setStatusMessage('Investigando fuentes y redactando...');
+    setStatusMessage(`Redactando con ${isDeepseek ? 'DeepSeek' : 'Gemini'}...`);
 
     try {
-      const textData = await generateNewsContent(input, mode, file, language, length, settings);
-      console.log("Paso 1 – textData.sources", textData.sources);
-      console.log("Paso 1 – textData.rawSourceChunks", textData.rawSourceChunks);
-      
+      let result;
+      if (isDeepseek) {
+        result = await generateArticleWithDeepseek(input, language, length, settings, mode);
+      } else {
+        result = await generateNewsContent(input, mode, file, language, length, settings);
+      }
+
       const partialArticle: GeneratedArticle = {
         id: Date.now().toString(),
         createdAt: Date.now(),
         topic: mode === 'topic' ? input : file?.name || 'Documento',
-        title: textData.title,
-        content: textData.content,
-        sources: textData.sources,
-        rawSources: textData.rawSourceChunks,
+        title: result.title,
+        content: result.content,
+        sources: (result as any).sources || [],
+        rawSources: (result as any).rawSourceChunks || [],
         media: [],
         language,
-        keywords: textData.keywords,
-        metaDescription: textData.metaDescription,
-        imagePrompt: textData.imagePrompt
+        keywords: result.keywords,
+        metaDescription: result.metaDescription,
+        imagePrompt: result.imagePrompt
       };
-      console.log("Paso 2 – partialArticle.sources", partialArticle.sources);
-      console.log("Paso 2 – partialArticle.rawSources", partialArticle.rawSources);
       
       setArticle(partialArticle);
       setAdvancedSettings(settings);
@@ -375,19 +390,28 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
   const handleGenerateSocialPost = async (platform: 'x' | 'linkedin' | 'facebook'): Promise<string> => {
     if (!article) return '';
     
-    // Simple fallback - in production you'd call Gemini to generate platform-specific content
-    const title = article.title;
-    const keywords = article.keywords.slice(0, 3).map(k => `#${k.replace(/\s+/g, '')}`).join(' ');
-    
-    switch (platform) {
-      case 'x':
-        return `📰 ${title}\n\n${article.metaDescription.substring(0, 180)}...\n\n${keywords}`;
-      case 'linkedin':
-        return `🔔 ${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 500)}...\n\n${keywords}\n\n#Noticias #Actualidad`;
-      case 'facebook':
-        return `${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 800)}...\n\n${keywords}`;
-      default:
-        return title;
+    try {
+      if (config.activeProvider === 'deepseek' && hasDeepseekApiKey()) {
+        return await generateSocialPostWithDeepseek(article, platform);
+      }
+      
+      // Gemini Fallback (simulado por ahora o extendido si se desea)
+      const title = article.title;
+      const keywords = article.keywords.slice(0, 3).map(k => `#${k.replace(/\s+/g, '')}`).join(' ');
+      
+      switch (platform) {
+        case 'x':
+          return `📰 ${title}\n\n${article.metaDescription.substring(0, 180)}...\n\n${keywords}`;
+        case 'linkedin':
+          return `🔔 ${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 500)}...\n\n${keywords}\n\n#Noticias #Actualidad`;
+        case 'facebook':
+          return `${title}\n\n${article.metaDescription}\n\n${article.content.substring(0, 800)}...\n\n${keywords}`;
+        default:
+          return title;
+      }
+    } catch (e) {
+      console.error("Error generating social post:", e);
+      return "Error generando contenido social.";
     }
   };
 
