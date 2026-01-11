@@ -38,6 +38,9 @@ type GeneratorRequestPayload = (TextRequestPayload | ImagesRequestPayload | Audi
 };
 
 const IMAGE_MODEL_CANDIDATES = [
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image-preview",
+  "imagen-3-fast-generate-001",
   "imagen-3.0-fast-generate-001",
   "imagen-3.0-generate-001"
 ];
