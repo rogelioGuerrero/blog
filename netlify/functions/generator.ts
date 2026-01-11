@@ -99,7 +99,7 @@ export default async (req: Request) => {
       return jsonResponse({ error: "Gemini API key is required" }, 400);
     }
 
-    const ai = new GoogleGenAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey }) as any;
 
     switch (body.action) {
       case "text":
@@ -172,14 +172,13 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     contents = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
   }
 
-  const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
-  const result = await model.generateContent({
+  const result = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
     contents
   });
 
-  const fullText = result.response.text() || "";
+  const fullText = result.text || "";
   const parts = fullText.split(/\|\|\|[A-Z_]+\|\|\|/);
-
 
   const title = parts[1]?.trim() || "Noticia Generada";
   const rawContent = parts[2]?.trim() || fullText;
