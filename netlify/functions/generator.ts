@@ -45,7 +45,7 @@ const IMAGE_MODEL_CANDIDATES = [
   "imagen-3.0-generate-001"
 ];
 
-const GEMINI_SEARCH_ENABLED = Netlify.env.get("GEMINI_SEARCH_ENABLED") === "true";
+const GEMINI_SEARCH_ENABLED = process.env.GEMINI_SEARCH_ENABLED === "true";
 
 const isToolNotFoundError = (error: any): boolean => {
   const statusCandidates = [
@@ -96,7 +96,7 @@ export default async (req: Request) => {
 
   try {
     const body = (await req.json()) as GeneratorRequestPayload;
-    const apiKey = body.apiKey || Netlify.env.get("GEMINI_API_KEY");
+    const apiKey = body.apiKey || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return jsonResponse({ error: "Gemini API key is required" }, 400);
@@ -162,8 +162,13 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
 
   if (mode === "document" && file) {
     contents = [
-      { inlineData: { mimeType: file.mimeType, data: file.data } },
-      { text: `${systemPrompt}\n\nSource Material Provided. Instruction: ${input || "Create a story based on this document."}` }
+      {
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: file.mimeType, data: file.data } },
+          { text: `${systemPrompt}\n\nSource Material Provided. Instruction: ${input || "Create a story based on this document."}` }
+        ]
+      }
     ];
   } else {
     let userPrompt = `Topic: "${input}".`;
@@ -172,7 +177,12 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
       userPrompt += ` Focus on events from the last ${settings.timeFrame} if possible.`;
     }
 
-    contents = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
+    contents = [
+      {
+        role: "user",
+        parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+      }
+    ];
   }
 
   const result = await ai.models.generateContent({
@@ -360,7 +370,12 @@ const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPaylo
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: safeText }] }],
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: safeText }]
+      }
+    ],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
