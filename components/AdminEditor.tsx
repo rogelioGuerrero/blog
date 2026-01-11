@@ -46,6 +46,10 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
   const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
   const [draggedFooterLinkIndex, setDraggedFooterLinkIndex] = useState<number | null>(null);
   const [dragOverFooterLinkIndex, setDragOverFooterLinkIndex] = useState<number | null>(null);
+
+  // -- Pagination State --
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -768,13 +772,30 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                          </tr>
                                      </thead>
                                      <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                         {articleList.map((article) => (
+                                         {articleList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((article) => {
+                                             const thumbnailMedia = article.media.find(m => m.type === 'image') || article.media[0];
+                                             return (
                                              <tr key={article.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                                  <td className="px-6 py-4">
                                                      <div className="flex items-center gap-3">
-                                                         <div className="w-10 h-10 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
-                                                             {article.media[0] && (
-                                                                 <img src={article.media[0].src} className="w-full h-full object-cover" alt="" />
+                                                         <div className="w-10 h-10 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative group">
+                                                             {thumbnailMedia ? (
+                                                                 <img 
+                                                                    src={thumbnailMedia.src} 
+                                                                    className="w-full h-full object-cover" 
+                                                                    alt="" 
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.style.display = 'none';
+                                                                        e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                                                                        const icon = document.createElement('div');
+                                                                        icon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image text-slate-400"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                                                                        e.currentTarget.parentElement?.appendChild(icon);
+                                                                    }}
+                                                                 />
+                                                             ) : (
+                                                                 <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                                     <ImageIcon size={16} />
+                                                                 </div>
                                                              )}
                                                          </div>
                                                          <div className="font-medium text-slate-900 dark:text-white line-clamp-1 max-w-[200px] sm:max-w-xs">
@@ -821,10 +842,54 @@ const AdminEditor: React.FC<Props> = ({ onClose, onSettingsUpdated, onArticlesUp
                                                      </button>
                                                  </td>
                                              </tr>
-                                         ))}
+                                             );
+                                         })}
                                      </tbody>
                                  </table>
                              </div>
+                             
+                             {/* Pagination Controls */}
+                             {articleList.length > 0 && (
+                                 <div className="px-6 py-4 border-t border-slate-200 dark:border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 dark:bg-black/20">
+                                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                         <span>Rows per page:</span>
+                                         <select 
+                                             value={itemsPerPage} 
+                                             onChange={(e) => {
+                                                 setItemsPerPage(Number(e.target.value));
+                                                 setCurrentPage(1);
+                                             }}
+                                             className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                                         >
+                                             <option value={5}>5</option>
+                                             <option value={10}>10</option>
+                                             <option value={20}>20</option>
+                                         </select>
+                                     </div>
+                                     
+                                     <div className="flex items-center gap-2">
+                                         <span className="text-xs text-slate-500 dark:text-slate-400 mr-2">
+                                             Page {currentPage} of {Math.ceil(articleList.length / itemsPerPage) || 1}
+                                         </span>
+                                         <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                                className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600 dark:text-slate-300"
+                                            >
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(articleList.length / itemsPerPage), p + 1))}
+                                                disabled={currentPage >= Math.ceil(articleList.length / itemsPerPage)}
+                                                className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600 dark:text-slate-300"
+                                            >
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                            </button>
+                                         </div>
+                                     </div>
+                                 </div>
+                             )}
                          </div>
                      )}
                 </div>
