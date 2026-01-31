@@ -61,19 +61,26 @@ interface NewsAPIArticle {
 const searchNewsAPI = async (query: string, timeFrame: string, apiKey: string): Promise<NewsAPIArticle[]> => {
   if (!apiKey) return [];
   
-  const timeMap: Record<string, string> = {
-    '24h': '1d',
-    '48h': '2d',
-    '7d': '7d',
-    '30d': '30d'
+  const now = new Date();
+  const timeMap: Record<string, number> = {
+    '24h': 1,
+    '48h': 2,
+    '7d': 7,
+    '30d': 30
   };
   
-  const from = timeMap[timeFrame] || '7d';
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${from}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
+  const daysAgo = timeMap[timeFrame] || 7;
+  const fromDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+  const fromISO = fromDate.toISOString();
+  
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
   
   try {
     const response = await fetch(url);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.error('NewsAPI responded with error:', response.status, await response.text());
+      return [];
+    }
     const data = await response.json();
     return data.articles || [];
   } catch (error) {

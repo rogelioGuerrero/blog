@@ -65,6 +65,7 @@ const loadConfig = (): GeneratorConfig => {
     geminiApiKey: '',
     deepseekApiKey: '',
     pexelsApiKey: '',
+    newsApiKey: '',
     preferredDomains: getRegionPreferredDomains('world'),
     blockedDomains: []
   };
