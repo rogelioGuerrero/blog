@@ -4,7 +4,8 @@ import {
   GeneratorLanguage, 
   ArticleLength, 
   GeneratorAdvancedSettings, 
-  RawSourceChunk 
+  RawSourceChunk,
+  GeneratorConfig
 } from "./types";
 
 let geminiApiKey = "";
@@ -18,6 +19,14 @@ export const hasGeminiApiKey = () => !!geminiApiKey;
 const generatorEndpoint = "/api/generator";
 
 const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> => {
+  const configStr = localStorage.getItem("generator_config");
+  let config: GeneratorConfig | undefined;
+  try {
+    if (configStr) config = JSON.parse(configStr);
+  } catch (e) {
+    console.error("Failed to parse generator config from localStorage", e);
+  }
+
   const response = await fetch(generatorEndpoint, {
     method: "POST",
     headers: {
@@ -25,7 +34,8 @@ const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> =>
     },
     body: JSON.stringify({
       ...payload,
-      apiKey: geminiApiKey || undefined
+      apiKey: geminiApiKey || undefined,
+      config
     })
   });
 

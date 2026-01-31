@@ -2,8 +2,11 @@ import { Buffer } from "node:buffer";
 import { GoogleGenAI, Modality } from "@google/genai";
 import type { Config } from "@netlify/functions";
 import {
+  AIModelRole,
+  AI_MODELS,
   ArticleLength,
   GeneratorAdvancedSettings,
+  GeneratorConfig,
   GeneratorInputMode,
   GeneratorLanguage,
   GeneratorSource,
@@ -96,6 +99,7 @@ export default async (req: Request) => {
   try {
     const body = (await req.json()) as GeneratorRequestPayload;
     const apiKey = body.apiKey || process.env.GEMINI_API_KEY;
+    const config = (body as any).config as GeneratorConfig | undefined;
 
     if (!apiKey) {
       return jsonResponse({ error: "Gemini API key is required" }, 400);
@@ -105,11 +109,11 @@ export default async (req: Request) => {
 
     switch (body.action) {
       case "text":
-        return jsonResponse({ textData: await handleTextGeneration(ai, body) });
+        return jsonResponse({ textData: await handleTextGeneration(ai, body, config) });
       case "images":
         return jsonResponse({ images: await handleImageGeneration(ai, body) });
       case "audio":
-        return jsonResponse({ audioUrl: await handleAudioGeneration(ai, body) });
+        return jsonResponse({ audioUrl: await handleAudioGeneration(ai, body, config) });
       default:
         return jsonResponse({ error: "Unknown action" }, 400);
     }
@@ -123,7 +127,7 @@ export const config: Config = {
   path: "/api/generator"
 };
 
-const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload) => {
+const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload, config?: GeneratorConfig) => {
   const { input, mode, file, language, length, settings } = payload;
 
   const targetLang = langNames[language];
@@ -184,8 +188,11 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     ];
   }
 
+  const modelFromUI = config?.modelOverrides?.gemini?.[AIModelRole.TEXT];
+  const model = modelFromUI || AI_MODELS.gemini[AIModelRole.TEXT];
+
   const result = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model,
     contents
   });
 
@@ -347,7 +354,7 @@ const handleImageGeneration = async (ai: GoogleGenAI, payload: ImagesRequestPayl
   throw new Error("All image generation attempts failed");
 };
 
-const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPayload) => {
+const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPayload, config?: GeneratorConfig) => {
   const { text, settings } = payload;
   let selectedVoice = "Aoede";
 
@@ -367,8 +374,11 @@ const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPaylo
 
   const safeText = text.length > 40000 ? text.substring(0, 40000) + "..." : text;
 
+  const modelFromUI = config?.modelOverrides?.gemini?.[AIModelRole.AUDIO];
+  const model = modelFromUI || AI_MODELS.gemini[AIModelRole.AUDIO];
+
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash-exp",
+    model,
     contents: [
       {
         role: "user",

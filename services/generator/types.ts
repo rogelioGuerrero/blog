@@ -85,6 +85,25 @@ export interface UploadedFile {
 
 export type AIProvider = 'gemini' | 'deepseek';
 
+export enum AIModelRole {
+  TEXT = 'text',
+  IMAGE = 'image',
+  AUDIO = 'audio'
+}
+
+export const AI_MODELS = {
+  gemini: {
+    [AIModelRole.TEXT]: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash',
+    [AIModelRole.IMAGE]: process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image',
+    [AIModelRole.AUDIO]: process.env.GEMINI_AUDIO_MODEL || 'gemini-2.5-flash' // Actualizado de exp a 2.5-flash
+  },
+  deepseek: {
+    [AIModelRole.TEXT]: process.env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
+    [AIModelRole.IMAGE]: '', // Deepseek no suele tener nativo de imagen
+    [AIModelRole.AUDIO]: ''
+  }
+} as const;
+
 export interface GeneratorConfig {
   activeProvider: AIProvider;
   geminiApiKey: string;
@@ -92,6 +111,8 @@ export interface GeneratorConfig {
   pexelsApiKey: string;
   preferredDomains: string[];
   blockedDomains: string[];
+  // Mapeo opcional de modelos desde la UI
+  modelOverrides?: Partial<Record<AIProvider, Partial<Record<AIModelRole, string>>>>;
 }
 
 // Constants
