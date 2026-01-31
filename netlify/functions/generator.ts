@@ -58,7 +58,7 @@ interface NewsAPIArticle {
   publishedAt: string;
 }
 
-const searchNewsAPI = async (query: string, timeFrame: string, apiKey: string): Promise<NewsAPIArticle[]> => {
+const searchNewsAPI = async (query: string, settings: GeneratorAdvancedSettings, apiKey: string): Promise<NewsAPIArticle[]> => {
   if (!apiKey) return [];
   
   const now = new Date();
@@ -71,26 +71,54 @@ const searchNewsAPI = async (query: string, timeFrame: string, apiKey: string): 
     'month': 30
   };
   
-  const daysAgo = timeMap[timeFrame] || 7;
+  const daysAgo = timeMap[settings.timeFrame] || 7;
   const fromDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-  const fromISO = fromDate.toISOString();
-  
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO.split('T')[0]}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('NewsAPI responded with error:', response.status, errorText);
-      return [];
+  const fromISO = fromDate.toISOString().split('T')[0];
+
+  // Map focus to NewsAPI categories
+  const focusToCategory: Record<string, string> = {
+    'economic': 'business',
+    'technological': 'technology',
+    'social': 'general',
+    'political': 'politics',
+    'general': 'general'
+  };
+  const category = focusToCategory[settings.focus] || 'general';
+
+  const tryFetch = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`NewsAPI Error (${response.status}):`, errorText);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('NewsAPI fetch failed:', error);
+      return null;
     }
-    const data = await response.json();
-    console.log(`NewsAPI found ${data.articles?.length || 0} articles for query: ${query}`);
-    return data.articles || [];
-  } catch (error) {
-    console.error('NewsAPI search failed:', error);
-    return [];
+  };
+
+  // Strategy 1: Search everything with query
+  const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=popularity&language=es&pageSize=5&apiKey=${apiKey}`;
+  const everythingData = await tryFetch(everythingUrl);
+  
+  if (everythingData?.articles?.length > 0) {
+    console.log(`NewsAPI /everything found ${everythingData.articles.length} articles for: ${query}`);
+    return everythingData.articles;
   }
+
+  // Strategy 2: Fallback to Top Headlines by category if everything fails
+  console.log(`NewsAPI /everything empty, trying /top-headlines for category: ${category}`);
+  const headlinesUrl = `https://newsapi.org/v2/top-headlines?category=${category}&language=es&pageSize=5&apiKey=${apiKey}`;
+  const headlinesData = await tryFetch(headlinesUrl);
+
+  if (headlinesData?.articles?.length > 0) {
+    return headlinesData.articles;
+  }
+
+  return [];
 };
 
 const isToolNotFoundError = (error: any): boolean => {
@@ -180,7 +208,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   let realSources: NewsAPIArticle[] = [];
   
   if (mode === "topic" && config?.newsApiKey && settings.timeFrame !== "any") {
-    realSources = await searchNewsAPI(input, settings.timeFrame, config.newsApiKey);
+    realSources = await searchNewsAPI(input, settings, config.newsApiKey);
     
     if (realSources.length > 0) {
       newsContext = '\n\nREAL NEWS SOURCES (use these as primary references):\n';
