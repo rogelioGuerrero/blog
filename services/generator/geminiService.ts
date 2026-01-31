@@ -19,7 +19,7 @@ export const hasGeminiApiKey = () => !!geminiApiKey;
 const generatorEndpoint = "/api/generator";
 
 const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> => {
-  const configStr = localStorage.getItem("generator_config");
+  const configStr = localStorage.getItem("blog_generator_config");
   let config: GeneratorConfig | undefined;
   try {
     if (configStr) config = JSON.parse(configStr);
