@@ -224,8 +224,16 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     length: ArticleLength,
     settings: GeneratorAdvancedSettings
   ) => {
-    const isDeepseek = config.activeProvider === 'deepseek';
+    const needsNewsApi = mode === 'topic' && (settings.verifiedSourcesOnly || !!config.newsApiKey);
+    const forceGemini = needsNewsApi;
+    const isDeepseek = forceGemini ? false : config.activeProvider === 'deepseek';
     const hasKey = isDeepseek ? hasDeepseekApiKey() : hasGeminiApiKey();
+
+    if (needsNewsApi && !config.newsApiKey) {
+      setError('Configura tu NewsAPI Key para generar con fuentes verificadas');
+      setShowSettings(true);
+      return;
+    }
 
     if (!hasKey) {
       setError(`Configura tu ${isDeepseek ? 'DeepSeek' : 'Gemini'} API Key primero`);

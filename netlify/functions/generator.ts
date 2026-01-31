@@ -137,12 +137,13 @@ const searchNewsAPI = async (
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`NewsAPI Error (${response.status}):`, errorText);
-        return null;
+        return { data: null, error: `HTTP ${response.status}: ${errorText}` };
       }
-      return await response.json();
-    } catch (error) {
-      console.error('NewsAPI fetch failed:', error);
-      return null;
+      return { data: await response.json(), error: null };
+    } catch (error: any) {
+      const message = error?.message || String(error);
+      console.error('NewsAPI fetch failed:', message);
+      return { data: null, error: message };
     }
   };
 
@@ -160,7 +161,11 @@ const searchNewsAPI = async (
   }
   everythingUrl.search = everythingParams.toString();
 
-  const everythingData = await tryFetch(everythingUrl.toString());
+  const { data: everythingData, error: everythingError } = await tryFetch(everythingUrl.toString());
+
+  if (everythingError) {
+    throw new Error(`NewsAPI /everything falló: ${everythingError}`);
+  }
   
   if (everythingData?.articles?.length > 0) {
     console.log(`NewsAPI /everything found ${everythingData.articles.length} articles for: ${query}`);
@@ -170,7 +175,11 @@ const searchNewsAPI = async (
   // Strategy 2: Fallback to Top Headlines by category if everything fails
   console.log(`NewsAPI /everything empty, trying /top-headlines for category: ${category}, country: ${country}`);
   const headlinesUrl = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&q=${encodeURIComponent(query)}&pageSize=5&apiKey=${apiKey}`;
-  const headlinesData = await tryFetch(headlinesUrl);
+  const { data: headlinesData, error: headlinesError } = await tryFetch(headlinesUrl);
+
+  if (headlinesError) {
+    throw new Error(`NewsAPI /top-headlines falló: ${headlinesError}`);
+  }
 
   if (headlinesData?.articles?.length > 0) {
     return headlinesData.articles;
@@ -475,6 +484,19 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
         uri,
         domain: domain || undefined,
         categories: categorizeDomain(domain),
+      });
+    }
+  }
+
+  if (uniqueSources.length === 0 && realSources.length > 0) {
+    for (const article of realSources) {
+      if (!article.url) continue;
+      const domain = getDomainFromUrl(article.url);
+      uniqueSources.push({
+        title: article.source?.name || article.title,
+        uri: article.url,
+        domain: domain || undefined,
+        categories: categorizeDomain(domain)
       });
     }
   }
