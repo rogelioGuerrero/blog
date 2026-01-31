@@ -66,22 +66,26 @@ const searchNewsAPI = async (query: string, timeFrame: string, apiKey: string): 
     '24h': 1,
     '48h': 2,
     '7d': 7,
-    '30d': 30
+    'week': 7,
+    '30d': 30,
+    'month': 30
   };
   
   const daysAgo = timeMap[timeFrame] || 7;
   const fromDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
   const fromISO = fromDate.toISOString();
   
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO.split('T')[0]}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
   
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      console.error('NewsAPI responded with error:', response.status, await response.text());
+      const errorText = await response.text();
+      console.error('NewsAPI responded with error:', response.status, errorText);
       return [];
     }
     const data = await response.json();
+    console.log(`NewsAPI found ${data.articles?.length || 0} articles for query: ${query}`);
     return data.articles || [];
   } catch (error) {
     console.error('NewsAPI search failed:', error);
