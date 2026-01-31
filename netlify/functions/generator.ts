@@ -97,9 +97,9 @@ const searchNewsAPI = async (
     'month': 30
   };
   
-  const daysAgo = timeMap[settings.timeFrame] || 7;
-  const fromDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-  const fromISO = fromDate.toISOString().split('T')[0];
+  const daysAgo = timeMap[settings.timeFrame];
+  const fromDate = daysAgo ? new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000) : null;
+  const fromISO = fromDate ? fromDate.toISOString().split('T')[0] : null;
 
   // Map focus to NewsAPI categories
   const focusToCategory: Record<string, string> = {
@@ -146,9 +146,21 @@ const searchNewsAPI = async (
     }
   };
 
-  // Strategy 1: Search everything with query
-  const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=popularity&language=${language}&pageSize=5&apiKey=${apiKey}`;
-  const everythingData = await tryFetch(everythingUrl);
+  // Strategy 1: Search everything with query (NewsAPI docs: q, from, sortBy, apiKey)
+  const everythingUrl = new URL("https://newsapi.org/v2/everything");
+  const everythingParams = new URLSearchParams({
+    q: query,
+    sortBy: "popularity",
+    language,
+    pageSize: "5",
+    apiKey
+  });
+  if (fromISO) {
+    everythingParams.set("from", fromISO);
+  }
+  everythingUrl.search = everythingParams.toString();
+
+  const everythingData = await tryFetch(everythingUrl.toString());
   
   if (everythingData?.articles?.length > 0) {
     console.log(`NewsAPI /everything found ${everythingData.articles.length} articles for: ${query}`);
@@ -255,17 +267,19 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   
   const newsApiKey = payload.newsApiKey || config?.newsApiKey || process.env.NEWS_API_KEY;
 
-  if (mode === "topic" && settings.timeFrame !== "any" && !newsApiKey) {
-    console.warn("NewsAPI key missing; skipping NewsAPI source fetch.");
-  }
-
-  if (mode === "topic" && newsApiKey && settings.timeFrame !== "any") {
-    realSources = await searchNewsAPI(input, settings, newsApiKey, language);
-    
-    if (realSources.length > 0) {
-      const dossier = buildNewsDossier(realSources);
-      newsContext = `\n\nNEWSAPI DOSSIER (PRIMARY SOURCE MATERIAL):\n${dossier}\n\nIMPORTANT: Base your article ONLY on the dossier above and include the URLs in your content.`;
+  if (mode === "topic") {
+    if (!newsApiKey) {
+      throw new Error("NewsAPI key requerida para generar artículos con fuentes verificadas.");
     }
+
+    realSources = await searchNewsAPI(input, settings, newsApiKey, language);
+
+    if (realSources.length === 0) {
+      throw new Error("NewsAPI no devolvió resultados para ese tema. Ajusta el tema o la temporalidad.");
+    }
+
+    const dossier = buildNewsDossier(realSources);
+    newsContext = `\n\nNEWSAPI DOSSIER (PRIMARY SOURCE MATERIAL):\n${dossier}\n\nIMPORTANT: Base your article ONLY on the dossier above and include the URLs in your content.`;
   }
   
   const systemPrompt = `You are a world-class journalist engine. 
@@ -332,7 +346,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   const modelFromUI = config?.modelOverrides?.gemini?.[AIModelRole.TEXT];
   const model = modelFromUI || AI_MODELS.gemini[AIModelRole.TEXT];
 
-  const useGoogleSearch = GEMINI_SEARCH_ENABLED && realSources.length === 0 && !newsApiKey;
+  const useGoogleSearch = false;
 
   const result = await ai.models.generateContent({
     model,
