@@ -49,6 +49,39 @@ const IMAGE_MODEL_CANDIDATES = [
 
 const GEMINI_SEARCH_ENABLED = process.env.GEMINI_SEARCH_ENABLED === "true";
 
+interface NewsAPIArticle {
+  title: string;
+  description: string;
+  content: string;
+  url: string;
+  source: { name: string };
+  publishedAt: string;
+}
+
+const searchNewsAPI = async (query: string, timeFrame: string, apiKey: string): Promise<NewsAPIArticle[]> => {
+  if (!apiKey) return [];
+  
+  const timeMap: Record<string, string> = {
+    '24h': '1d',
+    '48h': '2d',
+    '7d': '7d',
+    '30d': '30d'
+  };
+  
+  const from = timeMap[timeFrame] || '7d';
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${from}&sortBy=publishedAt&language=es&pageSize=5&apiKey=${apiKey}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.articles || [];
+  } catch (error) {
+    console.error('NewsAPI search failed:', error);
+    return [];
+  }
+};
+
 const isToolNotFoundError = (error: any): boolean => {
   const statusCandidates = [
     error?.status,
@@ -131,6 +164,27 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   const { input, mode, file, language, length, settings } = payload;
 
   const targetLang = langNames[language];
+  
+  let newsContext = '';
+  let realSources: NewsAPIArticle[] = [];
+  
+  if (mode === "topic" && config?.newsApiKey && settings.timeFrame !== "any") {
+    realSources = await searchNewsAPI(input, settings.timeFrame, config.newsApiKey);
+    
+    if (realSources.length > 0) {
+      newsContext = '\n\nREAL NEWS SOURCES (use these as primary references):\n';
+      realSources.forEach((article, idx) => {
+        newsContext += `\n${idx + 1}. [${article.source.name}] ${article.title}\n`;
+        newsContext += `   URL: ${article.url}\n`;
+        newsContext += `   Published: ${article.publishedAt}\n`;
+        if (article.description) {
+          newsContext += `   Summary: ${article.description}\n`;
+        }
+      });
+      newsContext += '\n\nIMPORTANT: Base your article on these real sources. Include relevant URLs in your content.';
+    }
+  }
+  
   const systemPrompt = `You are a world-class journalist engine. 
     Target Language: ${targetLang}.
     Target Length: ${lengthGuide[length]}.
@@ -143,13 +197,15 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     SOURCE QUALITY BASELINE (ALWAYS ENFORCED):
     - When using external information or news coverage, always rely on reputable, well-known news outlets and official institutions.
     - Avoid blogs, forums, tabloids, and low-credibility websites as primary sources.
+    ${realSources.length > 0 ? '- PRIORITIZE the real news sources provided below in your article.' : ''}
     
     CONTENT REQUIREMENTS (STRICT):
     ${settings.includeQuotes ? "- MUST include direct quotes (with attribution) from relevant figures or documents." : ""}
     ${settings.includeStats ? "- MUST include specific data, statistics, percentages, or financial figures." : ""}
     ${settings.includeCounterArguments ? "- MUST include a counter-argument, alternative perspective, or risks involved to ensure balance." : ""}
     
-    Task: Write a news article following these constraints. Use your internal knowledge to provide accurate and verifiable information.
+    Task: Write a news article following these constraints.${realSources.length > 0 ? ' Use the provided real news sources as your primary information.' : ' Use your internal knowledge to provide accurate and verifiable information.'}
+    ${newsContext}
     
     Structure the response with these EXACT separators:
     |||HEADLINE|||
@@ -193,7 +249,8 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
 
   const result = await ai.models.generateContent({
     model,
-    contents
+    contents,
+    tools: GEMINI_SEARCH_ENABLED ? [{ googleSearch: {} }] : undefined
   });
 
   const fullText = result.text || "";
@@ -258,6 +315,16 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
 
   if (rawSourceChunks.length === 0 && declaredChunks.length > 0) {
     rawSourceChunks = declaredChunks;
+  }
+  
+  if (realSources.length > 0) {
+    const newsAPIChunks: RawSourceChunk[] = realSources.map(article => ({
+      title: `[${article.source.name}] ${article.title}`,
+      uri: article.url,
+      snippet: article.description || null,
+      provider: "newsapi"
+    }));
+    rawSourceChunks = [...newsAPIChunks, ...rawSourceChunks];
   }
 
   const rawSources = rawSourceChunks
@@ -327,31 +394,8 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
 };
 
 const handleImageGeneration = async (ai: GoogleGenAI, payload: ImagesRequestPayload) => {
-  const { prompt } = payload;
-
-  for (const model of IMAGE_MODEL_CANDIDATES) {
-    try {
-      const response = await ai.models.generateImages({
-        model,
-        prompt,
-        config: {
-          numberOfImages: 3,
-          aspectRatio: "16:9",
-          outputMimeType: "image/jpeg"
-        }
-      });
-
-      if (!response.generatedImages) {
-        throw new Error("No images generated");
-      }
-
-      return response.generatedImages.map((img: any) => img.image.imageBytes as string);
-    } catch (error) {
-      console.warn(`Image generation failed for model ${model}`, error);
-    }
-  }
-
-  throw new Error("All image generation attempts failed");
+  console.log("Image generation with Gemini is not supported. Use Pexels instead.");
+  return [];
 };
 
 const handleAudioGeneration = async (ai: GoogleGenAI, payload: AudioRequestPayload, config?: GeneratorConfig) => {

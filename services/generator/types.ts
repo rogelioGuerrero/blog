@@ -109,6 +109,7 @@ export interface GeneratorConfig {
   geminiApiKey: string;
   deepseekApiKey: string;
   pexelsApiKey: string;
+  newsApiKey: string;
   preferredDomains: string[];
   blockedDomains: string[];
   // Mapeo opcional de modelos desde la UI

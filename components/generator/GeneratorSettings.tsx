@@ -26,6 +26,7 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
   const [geminiKey, setGeminiKey] = useState('');
   const [deepseekKey, setDeepseekKey] = useState('');
   const [pexelsKey, setPexelsKey] = useState('');
+  const [newsKey, setNewsKey] = useState('');
   const [preferredDomains, setPreferredDomains] = useState('');
   const [blockedDomains, setBlockedDomains] = useState('');
   const [modelOverrides, setModelOverrides] = useState<GeneratorConfig['modelOverrides']>({});
@@ -37,6 +38,7 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
     setGeminiKey(initialConfig.geminiApiKey || '');
     setDeepseekKey(initialConfig.deepseekApiKey || '');
     setPexelsKey(initialConfig.pexelsApiKey || '');
+    setNewsKey(initialConfig.newsApiKey || '');
     setPreferredDomains(formatList(initialConfig.preferredDomains || []));
     setBlockedDomains(formatList(initialConfig.blockedDomains || []));
     setModelOverrides(initialConfig.modelOverrides || {});
@@ -50,6 +52,7 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
       geminiApiKey: geminiKey.trim(),
       deepseekApiKey: deepseekKey.trim(),
       pexelsApiKey: pexelsKey.trim(),
+      newsApiKey: newsKey.trim(),
       preferredDomains: parseList(preferredDomains),
       blockedDomains: parseList(blockedDomains),
       modelOverrides
@@ -209,6 +212,22 @@ export const GeneratorSettings: React.FC<GeneratorSettingsProps> = ({
                   </div>
 
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                          <ShieldCheck size={13} /> NewsAPI Key
+                        </label>
+                        <a href="https://newsapi.org/register" target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-500 hover:underline font-bold uppercase tracking-tighter">Obtener</a>
+                      </div>
+                      <input 
+                        type="password"
+                        value={newsKey}
+                        onChange={(e) => setNewsKey(e.target.value)}
+                        placeholder="..."
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-mono"
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-400 uppercase px-1 flex items-center gap-1.5">
                         <ShieldCheck size={13} /> Pexels API Key
