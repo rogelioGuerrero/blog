@@ -1,18 +1,33 @@
+export interface Source {
+  id: string;
+  name: string;
+  url: string;
+  domain?: string;
+  mentions?: number;
+  categories?: string[];
+  snippet?: string;
+}
+
+export interface SourceCertificate {
+  generatedAt: string;
+  totalMentions: number;
+  sources: Source[];
+}
+
 export interface Article {
   id: string;
   title: string;
   excerpt: string;
   content: string; // Markdown
-
   media: { type: 'image' | 'video', src: string; caption?: string }[];
   audioUrl?: string;
-  // Changed from strict union type to string to support dynamic JSON ingestion
   category: string; 
   date: string;
   author: string;
   featured?: boolean;
   readTime: number;
   sources?: string[];
+  sourceCertificate?: SourceCertificate;
   views?: number; // Internal analytics
 }
 

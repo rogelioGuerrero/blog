@@ -257,7 +257,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   const result = await ai.models.generateContent({
     model,
     contents,
-    tools: GEMINI_SEARCH_ENABLED ? [{ googleSearch: {} }] : undefined
+    ...(GEMINI_SEARCH_ENABLED ? { tools: [{ googleSearch: {} }] } : {})
   });
 
   const fullText = result.text || "";
