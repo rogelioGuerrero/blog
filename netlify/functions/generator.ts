@@ -9,6 +9,7 @@ import {
   GeneratorConfig,
   GeneratorInputMode,
   GeneratorLanguage,
+  SourceRegion,
   GeneratorSource,
   RawSourceChunk,
   UploadedFile
@@ -22,6 +23,7 @@ interface TextRequestPayload {
   language: GeneratorLanguage;
   length: ArticleLength;
   settings: GeneratorAdvancedSettings;
+  newsApiKey?: string;
 }
 
 interface ImagesRequestPayload {
@@ -38,6 +40,7 @@ interface AudioRequestPayload {
 
 type GeneratorRequestPayload = (TextRequestPayload | ImagesRequestPayload | AudioRequestPayload) & {
   apiKey?: string;
+  newsApiKey?: string;
 };
 
 const IMAGE_MODEL_CANDIDATES = [
@@ -58,7 +61,30 @@ interface NewsAPIArticle {
   publishedAt: string;
 }
 
-const searchNewsAPI = async (query: string, settings: GeneratorAdvancedSettings, apiKey: string): Promise<NewsAPIArticle[]> => {
+const buildNewsDossier = (articles: NewsAPIArticle[]): string => {
+  if (!articles.length) return "";
+  return articles
+    .map((article, idx) => {
+      const lines = [
+        `SOURCE ${idx + 1}`,
+        `Title: ${article.title}`,
+        `Source: ${article.source?.name || "Unknown"}`,
+        `Published: ${article.publishedAt}`,
+        article.description ? `Description: ${article.description}` : "",
+        article.content ? `Content: ${article.content}` : "",
+        `URL: ${article.url}`
+      ].filter(Boolean);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+};
+
+const searchNewsAPI = async (
+  query: string,
+  settings: GeneratorAdvancedSettings,
+  apiKey: string,
+  language: GeneratorLanguage
+): Promise<NewsAPIArticle[]> => {
   if (!apiKey) return [];
   
   const now = new Date();
@@ -85,6 +111,26 @@ const searchNewsAPI = async (query: string, settings: GeneratorAdvancedSettings,
   };
   const category = focusToCategory[settings.focus] || 'general';
 
+  const regionToCountry: Record<SourceRegion, string> = {
+    world: 'us',
+    us: 'us',
+    eu: 'es',
+    latam: 'mx',
+    asia: 'jp'
+  };
+
+  const languageToCountry: Partial<Record<GeneratorLanguage, string>> = {
+    es: 'es',
+    en: 'us',
+    fr: 'fr',
+    pt: 'br',
+    de: 'de'
+  };
+
+  const country = settings.sourceRegion === 'world'
+    ? languageToCountry[language] || 'us'
+    : regionToCountry[settings.sourceRegion] || 'us';
+
   const tryFetch = async (url: string) => {
     try {
       const response = await fetch(url);
@@ -101,7 +147,7 @@ const searchNewsAPI = async (query: string, settings: GeneratorAdvancedSettings,
   };
 
   // Strategy 1: Search everything with query
-  const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=popularity&language=es&pageSize=5&apiKey=${apiKey}`;
+  const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromISO}&sortBy=popularity&language=${language}&pageSize=5&apiKey=${apiKey}`;
   const everythingData = await tryFetch(everythingUrl);
   
   if (everythingData?.articles?.length > 0) {
@@ -110,8 +156,8 @@ const searchNewsAPI = async (query: string, settings: GeneratorAdvancedSettings,
   }
 
   // Strategy 2: Fallback to Top Headlines by category if everything fails
-  console.log(`NewsAPI /everything empty, trying /top-headlines for category: ${category}`);
-  const headlinesUrl = `https://newsapi.org/v2/top-headlines?category=${category}&language=es&pageSize=5&apiKey=${apiKey}`;
+  console.log(`NewsAPI /everything empty, trying /top-headlines for category: ${category}, country: ${country}`);
+  const headlinesUrl = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&q=${encodeURIComponent(query)}&pageSize=5&apiKey=${apiKey}`;
   const headlinesData = await tryFetch(headlinesUrl);
 
   if (headlinesData?.articles?.length > 0) {
@@ -207,20 +253,18 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   let newsContext = '';
   let realSources: NewsAPIArticle[] = [];
   
-  if (mode === "topic" && config?.newsApiKey && settings.timeFrame !== "any") {
-    realSources = await searchNewsAPI(input, settings, config.newsApiKey);
+  const newsApiKey = payload.newsApiKey || config?.newsApiKey || process.env.NEWS_API_KEY;
+
+  if (mode === "topic" && settings.timeFrame !== "any" && !newsApiKey) {
+    console.warn("NewsAPI key missing; skipping NewsAPI source fetch.");
+  }
+
+  if (mode === "topic" && newsApiKey && settings.timeFrame !== "any") {
+    realSources = await searchNewsAPI(input, settings, newsApiKey, language);
     
     if (realSources.length > 0) {
-      newsContext = '\n\nREAL NEWS SOURCES (use these as primary references):\n';
-      realSources.forEach((article, idx) => {
-        newsContext += `\n${idx + 1}. [${article.source.name}] ${article.title}\n`;
-        newsContext += `   URL: ${article.url}\n`;
-        newsContext += `   Published: ${article.publishedAt}\n`;
-        if (article.description) {
-          newsContext += `   Summary: ${article.description}\n`;
-        }
-      });
-      newsContext += '\n\nIMPORTANT: Base your article on these real sources. Include relevant URLs in your content.';
+      const dossier = buildNewsDossier(realSources);
+      newsContext = `\n\nNEWSAPI DOSSIER (PRIMARY SOURCE MATERIAL):\n${dossier}\n\nIMPORTANT: Base your article ONLY on the dossier above and include the URLs in your content.`;
     }
   }
   
@@ -243,7 +287,7 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     ${settings.includeStats ? "- MUST include specific data, statistics, percentages, or financial figures." : ""}
     ${settings.includeCounterArguments ? "- MUST include a counter-argument, alternative perspective, or risks involved to ensure balance." : ""}
     
-    Task: Write a news article following these constraints.${realSources.length > 0 ? ' Use the provided real news sources as your primary information.' : ' Use your internal knowledge to provide accurate and verifiable information.'}
+    Task: Write a news article following these constraints.${realSources.length > 0 ? ' Use ONLY the NewsAPI dossier provided below as your source material.' : ' Use your internal knowledge to provide accurate and verifiable information.'}
     ${newsContext}
     
     Structure the response with these EXACT separators:
@@ -254,7 +298,9 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     |||IMAGE_PROMPT|||
     (Write a highly detailed English prompt for an image generator.)
     |||METADATA|||
-    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))`;
+    (Provide a valid JSON object with "keywords" (array of strings) and "metaDescription" (string))
+    |||SOURCES|||
+    (Provide a valid JSON array with objects containing "title" and "url" for any sources you used.)`;
 
   let contents: any[] = [];
 
@@ -286,10 +332,12 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   const modelFromUI = config?.modelOverrides?.gemini?.[AIModelRole.TEXT];
   const model = modelFromUI || AI_MODELS.gemini[AIModelRole.TEXT];
 
+  const useGoogleSearch = GEMINI_SEARCH_ENABLED && realSources.length === 0 && !newsApiKey;
+
   const result = await ai.models.generateContent({
     model,
     contents,
-    ...(GEMINI_SEARCH_ENABLED ? { tools: [{ googleSearch: {} }] } : {})
+    ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {})
   });
 
   const fullText = result.text || "";

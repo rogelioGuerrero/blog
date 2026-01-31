@@ -35,7 +35,8 @@ const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> =>
     body: JSON.stringify({
       ...payload,
       apiKey: geminiApiKey || undefined,
-      config
+      config,
+      newsApiKey: config?.newsApiKey || undefined
     })
   });
 
