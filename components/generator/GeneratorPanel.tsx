@@ -224,7 +224,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     length: ArticleLength,
     settings: GeneratorAdvancedSettings
   ) => {
-    const needsNewsApi = mode === 'topic' && (settings.verifiedSourcesOnly || !!config.newsApiKey);
+    const needsNewsApi = mode === 'topic';
     const forceGemini = needsNewsApi;
     const isDeepseek = forceGemini ? false : config.activeProvider === 'deepseek';
     const hasKey = isDeepseek ? hasDeepseekApiKey() : hasGeminiApiKey();
@@ -250,7 +250,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
       if (isDeepseek) {
         result = await generateArticleWithDeepseek(input, language, length, settings, mode);
       } else {
-        result = await generateNewsContent(input, mode, file, language, length, settings);
+        result = await generateNewsContent(input, mode, file, language, length, settings, config.newsApiKey);
       }
 
       const partialArticle: GeneratedArticle = {

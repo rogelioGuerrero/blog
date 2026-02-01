@@ -27,6 +27,10 @@ const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> =>
     console.error("Failed to parse generator config from localStorage", e);
   }
 
+  const payloadNewsApiKey = typeof payload.newsApiKey === "string" ? payload.newsApiKey : undefined;
+  const configNewsApiKey = config?.newsApiKey;
+  const resolvedNewsApiKey = payloadNewsApiKey || configNewsApiKey || undefined;
+
   const response = await fetch(generatorEndpoint, {
     method: "POST",
     headers: {
@@ -36,7 +40,7 @@ const callGenerator = async <T>(payload: Record<string, unknown>): Promise<T> =>
       ...payload,
       apiKey: geminiApiKey || undefined,
       config,
-      newsApiKey: config?.newsApiKey || undefined
+      newsApiKey: resolvedNewsApiKey
     })
   });
 
@@ -80,7 +84,8 @@ export const generateNewsContent = async (
   file: UploadedFile | null,
   language: GeneratorLanguage,
   length: ArticleLength,
-  settings: GeneratorAdvancedSettings
+  settings: GeneratorAdvancedSettings,
+  newsApiKey?: string
 ): Promise<{
   title: string;
   content: string;
@@ -107,7 +112,8 @@ export const generateNewsContent = async (
     file,
     language,
     length,
-    settings
+    settings,
+    newsApiKey: newsApiKey || undefined
   });
 
   return {
