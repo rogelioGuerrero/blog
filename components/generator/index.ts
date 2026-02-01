@@ -6,3 +6,4 @@ export { GeneratorMediaReview } from './GeneratorMediaReview';
 export { GeneratorComplete } from './GeneratorComplete';
 export { SocialModal } from './SocialModal';
 export { HistorySidebar } from './HistorySidebar';
+export { NewsApiProbeModal } from './NewsApiProbeModal';

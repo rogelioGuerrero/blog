@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Sparkles, CheckCircle, AlertCircle, Clock, ChevronRight, Home } from 'lucide-react';
+import { X, Settings, Sparkles, CheckCircle, AlertCircle, Clock, ChevronRight, Home, Search } from 'lucide-react';
 import { GeneratorInput } from './GeneratorInput';
 import { GeneratorTextReview } from './GeneratorTextReview';
 import { GeneratorMediaReview } from './GeneratorMediaReview';
 import { GeneratorComplete } from './GeneratorComplete';
 import { GeneratorSettings } from './GeneratorSettings';
+import { NewsApiProbeModal } from './NewsApiProbeModal';
 import { SocialModal } from './SocialModal';
 import { HistorySidebar } from './HistorySidebar';
 import {
@@ -145,6 +146,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
+  const [showNewsProbe, setShowNewsProbe] = useState(false);
   
   // Loading States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -496,6 +498,13 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNewsProbe(true)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                title="Probar NewsAPI"
+              >
+                <Search size={18} className="text-slate-400" />
+              </button>
               {history.length > 0 && (
                 <button
                   onClick={() => setShowHistory(true)}
@@ -622,6 +631,12 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         initialConfig={config}
         onClose={() => setShowSettings(false)}
         onSave={handleSaveConfig}
+      />
+
+      <NewsApiProbeModal
+        isOpen={showNewsProbe}
+        onClose={() => setShowNewsProbe(false)}
+        defaultNewsApiKey={config.newsApiKey}
       />
 
       {/* History Sidebar */}
