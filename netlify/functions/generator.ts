@@ -287,6 +287,18 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
       throw new Error("NewsAPI no devolvió resultados para ese tema. Ajusta el tema o la temporalidad.");
     }
 
+    const hasUsableMaterial = realSources.some((article) => {
+      const description = (article.description || "").trim();
+      const content = (article.content || "").trim();
+      return (description.length + content.length) >= 80;
+    });
+
+    if (!hasUsableMaterial) {
+      throw new Error(
+        "NewsAPI devolvió titulares, pero sin texto suficiente (description/content) para redactar un artículo con respaldo. Intenta otro tema o cambia la temporalidad."
+      );
+    }
+
     const dossier = buildNewsDossier(realSources);
     newsContext = `\n\nNEWSAPI DOSSIER (PRIMARY SOURCE MATERIAL):\n${dossier}\n\nIMPORTANT: Base your article ONLY on the dossier above and include the URLs in your content.`;
   }
@@ -309,6 +321,9 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     ${settings.includeQuotes ? "- MUST include direct quotes (with attribution) from relevant figures or documents." : ""}
     ${settings.includeStats ? "- MUST include specific data, statistics, percentages, or financial figures." : ""}
     ${settings.includeCounterArguments ? "- MUST include a counter-argument, alternative perspective, or risks involved to ensure balance." : ""}
+
+    FACTUALITY RULES (NON-NEGOTIABLE):
+    ${mode === 'topic' ? "- You MUST use ONLY the NewsAPI dossier as the source of facts.\n    - Do NOT invent or guess any numbers (prices, exchange rates, percentages, dates, counts).\n    - If the dossier does not contain a requested fact (e.g. an exact 'today' exchange rate), explicitly say it is not available in the provided sources instead of guessing.\n    - If the dossier is insufficient to support the article, respond with a short explanation and do not fabricate details." : ""}
     
     Task: Write a news article following these constraints.${realSources.length > 0 ? ' Use ONLY the NewsAPI dossier provided below as your source material.' : ' Use your internal knowledge to provide accurate and verifiable information.'}
     ${newsContext}
@@ -328,6 +343,19 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   let contents: any[] = [];
 
   if (mode === "document" && file) {
+    const supportedDocumentMimeTypes = new Set<string>([
+      "application/pdf",
+      "text/plain",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif"
+    ]);
+
+    if (!supportedDocumentMimeTypes.has(file.mimeType)) {
+      throw new Error("Tipo de archivo no compatible para el generador. Usa PDF, TXT o una imagen.");
+    }
+
     contents = [
       {
         role: "user",
@@ -369,6 +397,33 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
   const title = parts[1]?.trim() || "Noticia Generada";
   const rawContent = parts[2]?.trim() || fullText;
   const content = normalizeToMarkdown(rawContent);
+
+  if (mode === "topic") {
+    // Hard guardrail: if the model produces numeric claims not found in the dossier,
+    // treat it as hallucination and abort instead of returning an ungrounded article.
+    const dossierText = buildNewsDossier(realSources);
+
+    // Focus on values that are likely factual claims: decimals, percentages, or currency-prefixed numbers.
+    const suspiciousNumberRegex = /(?:€|\$)?\b\d{1,3}(?:[\.,]\d+)+%?|\b\d+%/g;
+    const suspiciousNumbers = Array.from(new Set((content.match(suspiciousNumberRegex) || []).map(v => v.trim())));
+
+    const missing = suspiciousNumbers.filter((value) => {
+      if (!value) return false;
+      const direct = dossierText.includes(value);
+      if (direct) return false;
+
+      // Try a small normalization (comma vs dot) to reduce false negatives.
+      const swapped = value.includes(',') ? value.replace(/,/g, '.') : value.replace(/\./g, ',');
+      return !(swapped !== value && dossierText.includes(swapped));
+    });
+
+    if (missing.length > 0) {
+      throw new Error(
+        `La IA generó cifras que NO aparecen en las fuentes de NewsAPI (${missing.slice(0, 5).join(', ')}). Se canceló para evitar información inventada.`
+      );
+    }
+  }
+
   const imagePrompt = parts[3]?.trim() || `Editorial illustration representing ${input}`;
   const metadataRaw = parts[4]?.trim() || "{}";
   const sourcesRaw = parts[5]?.trim() || "[]";
@@ -394,6 +449,24 @@ const handleTextGeneration = async (ai: GoogleGenAI, payload: TextRequestPayload
     }
   } catch (e) {
     console.warn("Failed to parse sources JSON", e);
+  }
+
+  if (mode === "topic") {
+    const expectedUrls = realSources
+      .map((article) => (article.url || "").trim())
+      .filter(Boolean);
+
+    const contentHasCitation = expectedUrls.some((url) => content.includes(url));
+    const declaredHasCitation = declaredSources.some((entry) => {
+      const uri = (typeof entry?.url === "string" ? entry.url : typeof entry?.uri === "string" ? entry.uri : "").trim();
+      return uri ? expectedUrls.includes(uri) : false;
+    });
+
+    if (!contentHasCitation && !declaredHasCitation) {
+      throw new Error(
+        "La respuesta no citó ninguna URL de NewsAPI (ni en el cuerpo ni en la sección SOURCES). Se canceló para evitar un artículo sin respaldo."
+      );
+    }
   }
 
   const declaredChunks: RawSourceChunk[] = declaredSources

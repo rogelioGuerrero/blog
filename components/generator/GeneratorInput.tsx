@@ -89,6 +89,14 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (
+      file.type === 'application/msword' ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      alert('Este tipo de archivo no es compatible. Usa PDF, TXT o una imagen.');
+      e.target.value = '';
+      return;
+    }
     if (file.size > 4 * 1024 * 1024) {
       alert("El archivo es demasiado grande (Máx 4MB)");
       return;
@@ -158,7 +166,7 @@ export const GeneratorInput: React.FC<GeneratorInputProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,.txt,image/*"
+            accept=".pdf,.txt,image/*"
             onChange={handleFileChange}
             className="hidden"
           />
